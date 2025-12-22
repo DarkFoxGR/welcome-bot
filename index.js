@@ -3,11 +3,10 @@ const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerSta
 const googleTTS = require("google-tts-api");
 const http = require("http");
 const { Readable } = require("stream");
+const libsodium = require("libsodium-wrappers");
 
-// Διόρθωση για το node-fetch
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
-// Web Server για το Render
 http.createServer((req, res) => {
   res.write("Bot is running!");
   res.end();
@@ -21,17 +20,17 @@ const client = new Client({
   ]
 });
 
-client.once("clientReady", () => {
+client.once("ready", () => {
   console.log(`🤖 Bot online ως ${client.user.tag}`);
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
-  // Έλεγχος αν κάποιος μπήκε σε κανάλι
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
     if (!member || member.user.bot) return;
 
-    console.log(`Χρήστης μπήκε: ${member.displayName}`);
+    // Περιμένουμε την κρυπτογράφηση να είναι έτοιμη
+    await libsodium.ready;
 
     const connection = joinVoiceChannel({
       channelId: newState.channelId,
@@ -51,8 +50,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
       const response = await fetch(url);
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-
-      // Μετατροπή σε Stream για αποφυγή σφάλματος "chunk"
       const stream = Readable.from(buffer);
       
       const player = createAudioPlayer();
@@ -63,27 +60,19 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
       player.on(AudioPlayerStatus.Idle, () => {
         setTimeout(() => {
-          if (connection.state.status !== 'destroyed') {
-            connection.destroy();
-          }
+          if (connection.state.status !== 'destroyed') connection.destroy();
         }, 2000);
       });
 
       player.on('error', error => {
-        console.error(`Audio Player Error: ${error.message}`);
-        if (connection.state.status !== 'destroyed') {
-          connection.destroy();
-        }
+        console.error(`Audio Error: ${error.message}`);
+        if (connection.state.status !== 'destroyed') connection.destroy();
       });
 
     } catch (err) {
-      console.error("Σφάλμα:", err);
-      if (connection.state.status !== 'destroyed') {
-        connection.destroy();
-      }
+      if (connection.state.status !== 'destroyed') connection.destroy();
     }
   }
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
