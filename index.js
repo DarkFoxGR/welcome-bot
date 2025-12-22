@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require("@discordjs/voice");
 const googleTTS = require("google-tts-api");
-const fetch = require("node-fetch");
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args)); // Αυτή η γραμμή διορθώνει το σφάλμα
 const http = require("http");
 
 // Δημιουργία Web Server για το Render
@@ -60,4 +60,5 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
 
