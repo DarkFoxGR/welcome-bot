@@ -1,3 +1,8 @@
+const http = require("http");
+http.createServer((req, res) => {
+  res.write("Bot is running!");
+  res.end();
+}).listen(process.env.PORT || 3000);
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require("@discordjs/voice");
 const googleTTS = require("google-tts-api");
@@ -64,3 +69,4 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
