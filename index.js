@@ -14,7 +14,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMembers // Απαραίτητο για τα nicknames
+    GatewayIntentBits.GuildMembers // Αυτό επιτρέπει στο bot να βλέπει ποιος μπαίνει
   ]
 });
 
@@ -60,3 +60,4 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
