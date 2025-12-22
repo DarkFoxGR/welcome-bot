@@ -1,36 +1,12 @@
-const { Client, GatewayIntentBits } = require("discord.js");
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require("@discordjs/voice");
-const googleTTS = require("google-tts-api");
-const http = require("http");
-const { Readable } = require("stream");
-const libsodium = require("libsodium-wrappers");
-
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
-http.createServer((req, res) => {
-  res.write("Bot is running!");
-  res.end();
-}).listen(process.env.PORT || 3000);
-
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMembers
-  ]
-});
-
 client.once("ready", () => {
   console.log(`🤖 Bot online ως ${client.user.tag}`);
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
+  // Έλεγχος αν κάποιος μπήκε σε κανάλι
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
     if (!member || member.user.bot) return;
-
-    // Περιμένουμε την κρυπτογράφηση να είναι έτοιμη
-    await libsodium.ready;
 
     const connection = joinVoiceChannel({
       channelId: newState.channelId,
@@ -70,6 +46,7 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
       });
 
     } catch (err) {
+      console.error("Error:", err);
       if (connection.state.status !== 'destroyed') connection.destroy();
     }
   }
