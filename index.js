@@ -21,7 +21,7 @@ const client = new Client({
   ]
 });
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`🤖 Bot online ως ${client.user.tag}`);
 });
 
@@ -86,3 +86,4 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
