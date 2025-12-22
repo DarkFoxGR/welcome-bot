@@ -2,11 +2,12 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require("@discordjs/voice");
 const googleTTS = require("google-tts-api");
 const http = require("http");
+const { Readable } = require("stream");
 
-// Διόρθωση για το node-fetch σε περιβάλλον CommonJS
+// Διόρθωση για το node-fetch
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
-// Δημιουργία Web Server για να κρατάει το Render το bot ενεργό
+// Web Server για το Render
 http.createServer((req, res) => {
   res.write("Bot is running!");
   res.end();
@@ -16,7 +17,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMembers // Απαραίτητο για να βλέπει ποιος μπαίνει στο κανάλι
+    GatewayIntentBits.GuildMembers
   ]
 });
 
@@ -25,14 +26,12 @@ client.once("ready", () => {
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
-  // Έλεγχος αν κάποιος μπήκε σε κανάλι (ενώ πριν δεν ήταν σε κανένα)
+  // Έλεγχος αν κάποιος μπήκε σε κανάλι
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
-    
-    // Αγνοούμε τα άλλα bots
     if (!member || member.user.bot) return;
 
-    console.log(`Προσπάθεια σύνδεσης για τον χρήστη: ${member.displayName}`);
+    console.log(`Χρήστης μπήκε: ${member.displayName}`);
 
     const connection = joinVoiceChannel({
       channelId: newState.channelId,
@@ -42,7 +41,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     });
 
     try {
-      // Δημιουργία ήχου από κείμενο
       const text = `καλωσήρθες ${member.displayName}`;
       const url = googleTTS.getAudioUrl(text, {
         lang: "el",
@@ -54,37 +52,37 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
-      // Μετατροπή του Buffer σε Stream για να μην πετάει σφάλμα "chunk"
+      // Μετατροπή σε Stream για αποφυγή σφάλματος "chunk"
       const stream = Readable.from(buffer);
       
       const player = createAudioPlayer();
-      const resource = createAudioResource(stream); // Χρησιμοποιούμε το stream εδώ
+      const resource = createAudioResource(stream);
 
       connection.subscribe(player);
       player.play(resource);
 
-      // Αποσύνδεση αφού τελειώσει η ομιλία
       player.on(AudioPlayerStatus.Idle, () => {
         setTimeout(() => {
-            if (connection.state.status !== 'destroyed') {
-                connection.destroy();
-            }
+          if (connection.state.status !== 'destroyed') {
+            connection.destroy();
+          }
         }, 2000);
       });
 
       player.on('error', error => {
         console.error(`Audio Player Error: ${error.message}`);
-        connection.destroy();
+        if (connection.state.status !== 'destroyed') {
+          connection.destroy();
+        }
       });
 
     } catch (err) {
-      console.error("Σφάλμα κατά την αναπαραγωγή ήχου:", err);
+      console.error("Σφάλμα:", err);
       if (connection.state.status !== 'destroyed') {
-          connection.destroy();
+        connection.destroy();
       }
     }
   }
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
