@@ -51,10 +51,14 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
       });
 
       const response = await fetch(url);
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      // Μετατροπή του Buffer σε Stream για να μην πετάει σφάλμα "chunk"
+      const stream = Readable.from(buffer);
       
       const player = createAudioPlayer();
-      const resource = createAudioResource(buffer);
+      const resource = createAudioResource(stream); // Χρησιμοποιούμε το stream εδώ
 
       connection.subscribe(player);
       player.play(resource);
@@ -83,3 +87,4 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
