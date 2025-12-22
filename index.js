@@ -1,12 +1,14 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require("@discordjs/voice");
 const googleTTS = require("google-tts-api");
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args)); // Αυτή η γραμμή διορθώνει το σφάλμα
 const http = require("http");
 
-// Δημιουργία Web Server για το Render
+// Διόρθωση για το node-fetch σε περιβάλλον CommonJS
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+// Δημιουργία Web Server για να κρατάει το Render το bot ενεργό
 http.createServer((req, res) => {
-  res.write("Bot is alive!");
+  res.write("Bot is running!");
   res.end();
 }).listen(process.env.PORT || 3000);
 
@@ -14,7 +16,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMembers // Αυτό επιτρέπει στο bot να βλέπει ποιος μπαίνει
+    GatewayIntentBits.GuildMembers // Απαραίτητο για να βλέπει ποιος μπαίνει στο κανάλι
   ]
 });
 
@@ -23,17 +25,24 @@ client.once("ready", () => {
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
+  // Έλεγχος αν κάποιος μπήκε σε κανάλι (ενώ πριν δεν ήταν σε κανένα)
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
+    
+    // Αγνοούμε τα άλλα bots
     if (!member || member.user.bot) return;
+
+    console.log(`Προσπάθεια σύνδεσης για τον χρήστη: ${member.displayName}`);
 
     const connection = joinVoiceChannel({
       channelId: newState.channelId,
       guildId: newState.guild.id,
-      adapterCreator: newState.guild.voiceAdapterCreator
+      adapterCreator: newState.guild.voiceAdapterCreator,
+      selfDeaf: false
     });
 
     try {
+      // Δημιουργία ήχου από κείμενο
       const text = `καλωσήρθες ${member.displayName}`;
       const url = googleTTS.getAudioUrl(text, {
         lang: "el",
@@ -43,22 +52,34 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
       const response = await fetch(url);
       const buffer = Buffer.from(await response.arrayBuffer());
+      
       const player = createAudioPlayer();
       const resource = createAudioResource(buffer);
 
       connection.subscribe(player);
       player.play(resource);
 
+      // Αποσύνδεση αφού τελειώσει η ομιλία
       player.on(AudioPlayerStatus.Idle, () => {
-        setTimeout(() => connection.destroy(), 2000);
+        setTimeout(() => {
+            if (connection.state.status !== 'destroyed') {
+                connection.destroy();
+            }
+        }, 2000);
       });
+
+      player.on('error', error => {
+        console.error(`Audio Player Error: ${error.message}`);
+        connection.destroy();
+      });
+
     } catch (err) {
-      console.error(err);
-      connection.destroy();
+      console.error("Σφάλμα κατά την αναπαραγωγή ήχου:", err);
+      if (connection.state.status !== 'destroyed') {
+          connection.destroy();
+      }
     }
   }
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
-
