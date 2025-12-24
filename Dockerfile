@@ -1,7 +1,7 @@
-FROM node:20
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+FROM node:20-bookworm
+RUN apt-get update && apt-get install -y ffmpeg python3 build-essential && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/app
 COPY package*.json ./
-RUN npm install
+RUN npm install --include=dev
 COPY . .
 CMD ["node", "index.js"]
