@@ -1,5 +1,7 @@
 require('dotenv').config();
+// --- ΑΥΤΟ ΕΙΝΑΙ ΤΟ ΚΡΙΣΙΜΟ PATCH ---
 const sodium = require('libsodium-wrappers');
+// ------------------------------------
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { 
@@ -15,32 +17,24 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { Readable } = require("stream");
 const http = require("http");
 
-// Ο server για το Koyeb - Χρησιμοποιούμε τη θύρα 8080
-const port = process.env.PORT || 8080;
-http.createServer((req, res) => { 
-    res.writeHead(200);
-    res.end("Athina Bot is Running on Koyeb!"); 
-}).listen(port);
+const port = process.env.PORT || 8000;
+http.createServer((req, res) => { res.writeHead(200); res.end("Running"); }).listen(port);
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds, 
     GatewayIntentBits.GuildVoiceStates, 
     GatewayIntentBits.GuildMembers, 
-    GatewayIntentBits.GuildMessages, 
     GatewayIntentBits.MessageContent
   ]
 });
 
-const SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
-const SPEECH_REGION = "westeurope";
-
-client.once(Events.ClientReady, (c) => {
-    console.log(`✅ Η Αθηνά ξεκίνησε επιτυχώς! Συνδέθηκε ως ${c.user.tag}`);
+client.once(Events.ClientReady, () => {
+    console.log(`✅ Η Αθηνά ξεκίνησε!`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  // Περιμένουμε την κρυπτογράφηση να είναι έτοιμη
+  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΗΝ ΚΡΥΠΤΟΓΡΑΦΗΣΗ ΝΑ ΦΟΡΤΩΣΕΙ
   await sodium.ready;
 
   const connection = joinVoiceChannel({
@@ -51,44 +45,37 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 20000);
+    // Δίνουμε περισσότερο χρόνο για το Handshake κρυπτογράφησης
+    await entersState(connection, VoiceConnectionStatus.Ready, 30000);
 
-    const speechConfig = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
+    const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
-
     const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="el-GR"><voice name="el-GR-AthinaNeural"><prosody rate="0.85">${text}</prosody></voice></speak>`;
 
     synthesizer.speakSsmlAsync(ssml, result => {
       if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-        const stream = new Readable();
-        stream.push(Buffer.from(result.audioData));
-        stream.push(null);
+        const resource = createAudioResource(new Readable().wrap(new Readable({
+          read() { this.push(Buffer.from(result.audioData)); this.push(null); }
+        })), { inputType: StreamType.Arbitrary });
 
-        const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
         const player = createAudioPlayer();
         connection.subscribe(player);
         player.play(resource);
 
         player.on(AudioPlayerStatus.Idle, () => {
-          setTimeout(() => {
-            if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
-          }, 1000);
+          setTimeout(() => { if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy(); }, 1500);
           synthesizer.close();
         });
       }
-    }, err => {
-      console.error("Synthesizer error:", err);
-      if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
     });
 
   } catch (error) {
-    console.error("Σφάλμα σύνδεσης φωνής:", error.message);
+    console.error("Σφάλμα:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
 
 client.on("voiceStateUpdate", (oldState, newState) => {
-  // Αν κάποιος μπει σε κανάλι και δεν είναι bot
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
     playSpeech(`Καλωσήρθες ${newState.member.displayName}`, newState.channel);
   }
