@@ -1,10 +1,11 @@
+require('dotenv').config(); // Διαβάζει το Secret File (.env) από το Render
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { Readable } = require("stream");
 const http = require("http");
 
-// Keep-alive server για το Render
+// Keep-alive server για να παραμένει online το bot στο Render
 http.createServer((req, res) => { 
     res.write("Athina Bot is Active"); 
     res.end(); 
@@ -20,18 +21,18 @@ const client = new Client({
   ]
 });
 
-// Ρυθμίσεις Azure
-const SPEECH_KEY = "9LFKQhTyqkt4XjNZ2Upolvc41QzW50okzE5uPncnJu3FHB3CZ49tJQQJ99BLAC5RqLJXJ3w3AAAYACOGz4dJ";
+// Ρυθμίσεις Azure - Τώρα διαβάζονται από το Secret File
+const SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const SPEECH_REGION = "westeurope";
 
-// Το δικό σου ID για να έχεις τον έλεγχο
+// Το ID σου για να έχεις τον αποκλειστικό έλεγχο
 const ADMIN_ID = "364849864611201026"; 
 
 client.once("ready", () => {
-    console.log(`✅ Η Αθηνά ξεκίνησε! Συνδεδεμένος ως: ${client.user.tag}`);
+    console.log(`✅ Η Αθηνά είναι online! Συνδεδεμένος ως: ${client.user.tag}`);
 });
 
-// Κύρια λειτουργία ομιλίας (TTS)
+// Κεντρική λειτουργία ομιλίας (TTS)
 async function playSpeech(text, voiceChannel) {
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
@@ -42,7 +43,7 @@ async function playSpeech(text, voiceChannel) {
   const speechConfig = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
   const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
 
-  // SSML για αργή και φυσική φωνή (rate="0.85")
+  // Ρύθμιση φωνής el-GR-AthinaNeural με ταχύτητα 0.80 (πιο φυσική)
   const ssml = `
     <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="el-GR">
       <voice name="el-GR-AthinaNeural">
@@ -80,30 +81,32 @@ async function playSpeech(text, voiceChannel) {
   });
 }
 
-// 1. Λειτουργία Καλωσορίσματος (Για όλους)
+// 1. Αυτόματο Καλωσόρισμα όταν μπαίνει κάποιος σε κανάλι
 client.on("voiceStateUpdate", (oldState, newState) => {
-  // Αν κάποιος μπει σε κανάλι και δεν είναι bot
+  // Αν ένας χρήστης (όχι bot) μπει σε ένα Voice Channel
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
-    const text = `Καλωσήρθες στο κανάλι μας, ${newState.member.displayName}`;
+    const text = `Καλωσήρθες στη παρέα μας, ${newState.member.displayName}`;
     playSpeech(text, newState.channel);
   }
 });
 
-// 2. Εντολή !say (Μόνο για σένα)
+// 2. Εντολή !say - Δουλεύει ΜΟΝΟ για εσένα
 client.on("messageCreate", async (message) => {
-  // Αγνοούμε bot και μηνύματα που δεν ξεκινούν με !say
+  // Αγνοούμε μηνύματα από bots ή μηνύματα που δεν ξεκινούν με !say
   if (message.author.bot || !message.content.startsWith("!say ")) return;
 
-  // Έλεγχος αν ο χρήστης είναι ο Admin
+  // Έλεγχος αν ο χρήστης είναι ο Admin (εσύ)
   if (message.author.id !== ADMIN_ID) {
-    return message.reply("❌ Δεν έχεις άδεια να χρησιμοποιείς την Αθηνά!");
+    return message.reply("❌ Μόνο ο δημιουργός μου μπορεί να χρησιμοποιήσει αυτή την εντολή.");
   }
 
+  // Έλεγχος αν ο Admin είναι σε Voice Channel
   const voiceChannel = message.member.voice.channel;
   if (!voiceChannel) {
-    return message.reply("⚠️ Πρέπει να μπεις πρώτα σε ένα Voice Channel!");
+    return message.reply("⚠️ Πρέπει να μπεις σε ένα κανάλι φωνής πρώτα!");
   }
 
+  // Αφαίρεση του "!say " από το κείμενο και εκφώνηση
   const textToSay = message.content.replace("!say ", "");
   playSpeech(textToSay, voiceChannel);
 });
