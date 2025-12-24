@@ -1,11 +1,12 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
+const { Readable } = require("stream"); // Εργαλείο για τη μετατροπή
 const http = require("http");
 
 // Web Server για το Render
 http.createServer((req, res) => {
-  res.write("Bot is running with Athina Neural");
+  res.write("Bot is running with Athina Neural (Safe Mode)");
   res.end();
 }).listen(process.env.PORT || 3000);
 
@@ -17,15 +18,13 @@ const client = new Client({
   ]
 });
 
-// Δημιουργία του TTS instance
 const tts = new MsEdgeTTS();
 
 client.once("ready", () => {
-  console.log(`✅ Το Bot είναι Online με την Αθηνά: ${client.user.tag}`);
+  console.log(`✅ Το Bot είναι Online: ${client.user.tag}`);
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
-  // Αν κάποιος μπει σε κανάλι
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
     if (!member || member.user.bot) return;
@@ -43,13 +42,19 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     try {
       const text = `Καλωσήρθες ${member.displayName}`;
       
-      // Στην έκδοση 2.0.0 χρησιμοποιούμε το toStream με αυτόν τον τρόπο:
-      const audioStream = await tts.toStream(text, {
+      // 1. Παίρνουμε τον ήχο ως Raw Data (Buffer)
+      const audioBuffer = await tts.toRaw(text, {
         voice: "el-GR-AthinaNeural",
         outputFormat: OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN
       });
       
-      const resource = createAudioResource(audioStream);
+      // 2. Μετατρέπουμε το Buffer σε Readable Stream χειροκίνητα
+      const stream = new Readable();
+      stream.push(audioBuffer);
+      stream.push(null); // Τέλος της ροής
+      
+      // 3. Δημιουργία του resource για το Discord
+      const resource = createAudioResource(stream);
       const player = createAudioPlayer();
 
       connection.subscribe(player);
@@ -75,7 +80,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   }
 });
 
-// Προστασία από κρασαρίσματα (Socket Error)
 process.on('uncaughtException', (err) => {
     if (err.code === 'ERR_SOCKET_DGRAM_NOT_RUNNING') return;
     console.error('❌ Uncaught Exception:', err);
