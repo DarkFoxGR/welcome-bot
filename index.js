@@ -1,7 +1,14 @@
 require('dotenv').config();
 
-// 1. Εισαγωγή Libsodium και αναμονή για αρχικοποίηση
-const sodium = require('libsodium-wrappers');
+// --- FORCE ENCRYPTION PATCH ---
+// Φορτώνουμε το tweetnacl χειροκίνητα πριν από οτιδήποτε άλλο
+const nacl = require('tweetnacl');
+const voice = require('@discordjs/voice');
+
+console.log("--- Dependency Report ---");
+console.log(voice.generateDependencyReport());
+console.log("-----------------------");
+// ------------------------------
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { 
@@ -11,23 +18,17 @@ const {
     AudioPlayerStatus, 
     VoiceConnectionStatus, 
     entersState,
-    StreamType,
-    generateDependencyReport 
+    StreamType 
 } = require("@discordjs/voice");
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { PassThrough } = require("stream");
 const http = require("http");
 
-// Εκτύπωση αναφοράς εξαρτήσεων για έλεγχο στα Logs του Railway
-console.log("--- Dependency Report ---");
-console.log(generateDependencyReport());
-console.log("-----------------------");
-
-// Απλό Server για το Health Check του Railway
+// Απλό HTTP Server για να μην κλείνει το Railway το container
 const port = process.env.PORT || 8080;
 http.createServer((req, res) => { 
     res.writeHead(200); 
-    res.end("Bot is Active and Ready"); 
+    res.end("Athina Bot is running with TweetNaCl"); 
 }).listen(port);
 
 const client = new Client({
@@ -39,15 +40,11 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, () => {
-    console.log(`✅ Η Αθηνά ξεκίνησε! Συνδέθηκε ως: ${client.user.tag}`);
+    console.log(`✅ Η Αθηνά είναι Online! Συνδέθηκε ως: ${client.user.tag}`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  // --- ΤΟ ΠΙΟ ΚΡΙΣΙΜΟ ΣΗΜΕΙΟ ---
-  // Αναγκάζουμε το Bot να περιμένει τη βιβλιοθήκη κρυπτογράφησης
-  await sodium.ready;
-  console.log("🔒 Libsodium Ready - Ξεκινάει η σύνδεση...");
-
+  // Δημιουργία σύνδεσης
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
@@ -57,11 +54,11 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    // Αναμονή για πλήρη σύνδεση
+    // Αναμονή για τη σύνδεση (Handshake)
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
-    console.log(`🔊 Σύνδεση επιτυχής στο κανάλι: ${voiceChannel.name}`);
+    console.log(`🔊 Συνδέθηκε στο κανάλι: ${voiceChannel.name}`);
 
-    // Ρύθμιση Azure
+    // Ρύθμιση Azure Speech
     const speechConfig = sdk.SpeechConfig.fromSubscription(
         process.env.AZURE_SPEECH_KEY, 
         "westeurope"
@@ -92,7 +89,7 @@ async function playSpeech(text, voiceChannel) {
         player.play(resource);
 
         player.on(AudioPlayerStatus.Playing, () => {
-          console.log("▶️ Μετάδοση ήχου σε εξέλιξη...");
+          console.log("▶️ Η Αθηνά μιλάει...");
         });
 
         player.on(AudioPlayerStatus.Idle, () => {
@@ -100,7 +97,7 @@ async function playSpeech(text, voiceChannel) {
           setTimeout(() => {
             if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
                 connection.destroy();
-                console.log("🔌 Αποσύνδεση.");
+                console.log("🔌 Αποσυνδέθηκε.");
             }
           }, 2000);
           synthesizer.close();
@@ -112,16 +109,16 @@ async function playSpeech(text, voiceChannel) {
         });
 
       } else {
-        console.error("❌ Azure Error Details:", result.errorDetails);
+        console.error("❌ Azure Error:", result.errorDetails);
         connection.destroy();
       }
     }, err => {
-      console.error("❌ Synthesis Error:", err);
+      console.error("❌ Synthesis Task Error:", err);
       connection.destroy();
     });
 
   } catch (error) {
-    console.error("❌ Σφάλμα φωνής:", error.message);
+    console.error("❌ Σφάλμα φωνής/κρυπτογράφησης:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
         connection.destroy();
     }
@@ -129,7 +126,7 @@ async function playSpeech(text, voiceChannel) {
 }
 
 client.on("voiceStateUpdate", (oldState, newState) => {
-  // Έλεγχος αν κάποιος μπήκε σε κανάλι (όχι bot)
+  // Έλεγχος αν κάποιος πραγματικός χρήστης μπήκε σε κανάλι
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
     console.log(`👤 Χρήστης: ${newState.member.displayName}`);
     playSpeech(`Καλωσήρθες ${newState.member.displayName}`, newState.channel);
