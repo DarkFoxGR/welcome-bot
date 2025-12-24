@@ -1,10 +1,8 @@
 require('dotenv').config();
-const sodium = require('libsodium-wrappers');
-const { 
-    Client, 
-    GatewayIntentBits, 
-    Events 
-} = require("discord.js");
+
+// Φορτώνουμε το tweetnacl χειροκίνητα
+const nacl = require('tweetnacl');
+const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { 
     joinVoiceChannel, 
     createAudioPlayer, 
@@ -18,23 +16,26 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { PassThrough } = require("stream");
 const http = require("http");
 
-// --- STARTUP & ENCRYPTION CHECK ---
-(async () => {
-    await sodium.ready;
-    console.log("🔒 Libsodium Ready - Η κρυπτογράφηση ενεργοποιήθηκε.");
-})();
-
+// Health Check για το Railway
 const port = process.env.PORT || 8080;
-http.createServer((req, res) => { res.writeHead(200); res.end("Bot Online"); }).listen(port);
+http.createServer((req, res) => { 
+    res.writeHead(200); 
+    res.end("Athina Bot is Active"); 
+}).listen(port);
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMembers]
+  intents: [
+    GatewayIntentBits.Guilds, 
+    GatewayIntentBits.GuildVoiceStates, 
+    GatewayIntentBits.GuildMembers
+  ]
+});
+
+client.once(Events.ClientReady, () => {
+    console.log(`✅ Η Αθηνά ξεκίνησε! (Encryption: TweetNaCl)`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  // Αναμονή για την κρυπτογράφηση πριν από κάθε σύνδεση
-  await sodium.ready;
-
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
@@ -43,9 +44,9 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    // Περιμένουμε τη σύνδεση να γίνει Ready (εδώ γινόταν το σφάλμα)
+    // Περιμένουμε τη σύνδεση
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
-    console.log("✅ Σύνδεση επιτυχής με κρυπτογράφηση.");
+    console.log("🔊 Σύνδεση επιτυχής!");
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
@@ -55,19 +56,27 @@ async function playSpeech(text, voiceChannel) {
       if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
         const bufferStream = new PassThrough();
         bufferStream.end(Buffer.from(result.audioData));
-        const resource = createAudioResource(bufferStream, { inputType: StreamType.Arbitrary, inlineVolume: true });
+
+        const resource = createAudioResource(bufferStream, {
+          inputType: StreamType.Arbitrary,
+          inlineVolume: true
+        });
+
         const player = createAudioPlayer();
         connection.subscribe(player);
         player.play(resource);
 
         player.on(AudioPlayerStatus.Idle, () => {
-          setTimeout(() => { if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy(); }, 2000);
+          setTimeout(() => {
+            if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
+          }, 2000);
           synthesizer.close();
         });
       }
     });
+
   } catch (error) {
-    console.error("❌ Σφάλμα φωνής:", error.message);
+    console.error("❌ Σφάλμα:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
