@@ -1,6 +1,6 @@
 FROM node:20-bookworm
 
-# Εγκατάσταση απαραίτητων εργαλείων για το sodium-native
+# Εγκατάσταση απαραίτητων εργαλείων για το sodium-native (C++ compilers κτλ)
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
