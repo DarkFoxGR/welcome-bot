@@ -1,7 +1,6 @@
 require('dotenv').config();
 
-// --- THE ULTIMATE ENCRYPTION INJECTION ---
-// Φορτώνουμε το libsodium-wrappers και το κάνουμε inject στη βιβλιοθήκη voice
+// --- ENCRYPTION INJECTION ---
 const sodium = require('libsodium-wrappers');
 const voice = require('@discordjs/voice');
 
@@ -10,7 +9,6 @@ async function prepareEncryption() {
     console.log("🔒 Libsodium is ready and injected into voice library.");
 }
 prepareEncryption();
-// -----------------------------------------
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { 
@@ -26,19 +24,17 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { PassThrough } = require("stream");
 const http = require("http");
 
-// Web Server για το Railway (Health Check)
+// --- RAILWAY HEALTH CHECK FIX ---
+// Πρέπει να απαντάμε στο Railway για να μην μας κλείνει το container
 const port = process.env.PORT || 8080;
-http.createServer((req, res) => { 
+const server = http.createServer((req, res) => { 
     res.writeHead(200); 
-    res.end("Athina Bot: Encryption Mode Active"); 
-}).listen(port, "0.0.0.0", () => {
-    console.log(`🌐 Web Server running on port ${port}`);
+    res.end("Bot Status: Online"); 
 });
 
-// Εκτύπωση Report για έλεγχο
-console.log("--- Current Dependency Report ---");
-console.log(generateDependencyReport());
-console.log("-------------------------------");
+server.listen(port, "0.0.0.0", () => {
+    console.log(`🌐 Health Check Server active on port ${port}`);
+});
 
 const client = new Client({
   intents: [
@@ -50,10 +46,12 @@ const client = new Client({
 
 client.once(Events.ClientReady, (c) => {
     console.log(`✅ Η Αθηνά ξεκίνησε επιτυχώς ως: ${c.user.tag}`);
+    console.log("--- Dependency Report ---");
+    console.log(generateDependencyReport());
 });
 
 async function playSpeech(text, voiceChannel) {
-  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΟ SODIUM ΠΡΙΝ ΤΟ JOIN
+  // Πάντα περιμένουμε την κρυπτογράφηση πριν από κάθε σύνδεση
   await sodium.ready;
 
   const connection = joinVoiceChannel({
@@ -66,7 +64,7 @@ async function playSpeech(text, voiceChannel) {
   try {
     // Αναμονή για Ready κατάσταση
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
-    console.log(`🔊 Επιτυχής σύνδεση στο κανάλι: ${voiceChannel.name}`);
+    console.log(`🔊 Σύνδεση στο κανάλι: ${voiceChannel.name}`);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
@@ -92,12 +90,11 @@ async function playSpeech(text, voiceChannel) {
         player.play(resource);
 
         player.on('idle', () => {
-          console.log("⏹️ Τέλος ομιλίας.");
           setTimeout(() => {
             if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
                 connection.destroy();
             }
-          }, 2000);
+          }, 1500);
           synthesizer.close();
         });
 
@@ -106,7 +103,7 @@ async function playSpeech(text, voiceChannel) {
     });
 
   } catch (error) {
-    console.error("❌ Σφάλμα Σύνδεσης/Encryption:", error.message);
+    console.error("❌ Σφάλμα Σύνδεσης:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
         connection.destroy();
     }
@@ -114,9 +111,10 @@ async function playSpeech(text, voiceChannel) {
 }
 
 client.on("voiceStateUpdate", (oldState, newState) => {
+  // Ανίχνευση εισόδου χρήστη (όχι bot)
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
-    console.log(`👤 Ο χρήστης ${newState.member.displayName} εισήλθε.`);
-    playSpeech(`Καλωσήρθες ${newState.member.displayName}`, newState.channel);
+    console.log(`👤 Χρήστης: ${newState.member.displayName}`);
+    playSpeech(`${newState.member.displayName} καλωσήρθες στην παρέα μας`, newState.channel);
   }
 });
 
