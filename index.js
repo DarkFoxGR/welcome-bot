@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require("discord.js"); // ΑΥΤΗ Η ΓΡΑΜΜΗ ΕΛΕΙΠΕ
+const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 const http = require("http");
@@ -7,11 +7,10 @@ const libsodium = require("libsodium-wrappers");
 
 // Web Server για το Render
 http.createServer((req, res) => {
-  res.write("Bot is running with Athina Neural (Buffer Mode)!");
+  res.write("Bot is running with Athina Neural!");
   res.end();
 }).listen(process.env.PORT || 3000);
 
-// Δημιουργία του Client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -27,7 +26,6 @@ client.once("ready", () => {
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
-  // Έλεγχος αν κάποιος μπήκε σε κανάλι
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
     if (!member || member.user.bot) return;
@@ -47,15 +45,15 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     try {
       const text = `Καλωσήρθες ${member.displayName}`;
       
-      // Λήψη ήχου σε μορφή Buffer
-      const buffer = await tts.toBuffer(text, {
+      // Η ΔΙΟΡΘΩΣΗ: Χρησιμοποιούμε tts.toRaw αντί για toBuffer
+      const audioData = await tts.toRaw(text, {
         voice: "el-GR-AthinaNeural",
         outputFormat: OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN
       });
       
-      // Μετατροπή Buffer σε Readable Stream
+      // Μετατροπή των Raw δεδομένων σε Readable Stream
       const readableStream = new Readable();
-      readableStream.push(buffer);
+      readableStream.push(audioData);
       readableStream.push(null);
       
       const resource = createAudioResource(readableStream);
@@ -88,7 +86,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   }
 });
 
-// Προστασία από κρασαρίσματα
 process.on('uncaughtException', (err) => {
     if (err.code === 'ERR_SOCKET_DGRAM_NOT_RUNNING') return;
     console.error('❌ Uncaught Exception:', err);
