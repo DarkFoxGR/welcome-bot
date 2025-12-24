@@ -15,14 +15,19 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { Readable } = require("stream");
 const http = require("http");
 
-// Υποχρεωτικό για το Render
-http.createServer((req, res) => { res.write("Bot is Live"); res.end(); }).listen(process.env.PORT || 3000);
+// Ο server για το Koyeb - Χρησιμοποιούμε τη θύρα 8080
+const port = process.env.PORT || 8080;
+http.createServer((req, res) => { 
+    res.writeHead(200);
+    res.end("Athina Bot is Running on Koyeb!"); 
+}).listen(port);
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds, 
     GatewayIntentBits.GuildVoiceStates, 
     GatewayIntentBits.GuildMembers, 
+    GatewayIntentBits.GuildMessages, 
     GatewayIntentBits.MessageContent
   ]
 });
@@ -30,12 +35,12 @@ const client = new Client({
 const SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const SPEECH_REGION = "westeurope";
 
-client.once(Events.ClientReady, () => {
-    console.log(`✅ Η Αθηνά ξεκίνησε!`);
+client.once(Events.ClientReady, (c) => {
+    console.log(`✅ Η Αθηνά ξεκίνησε επιτυχώς! Συνδέθηκε ως ${c.user.tag}`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΟ SODIUM ΠΡΙΝ ΤΗ ΣΥΝΔΕΣΗ
+  // Περιμένουμε την κρυπτογράφηση να είναι έτοιμη
   await sodium.ready;
 
   const connection = joinVoiceChannel({
@@ -55,10 +60,11 @@ async function playSpeech(text, voiceChannel) {
 
     synthesizer.speakSsmlAsync(ssml, result => {
       if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-        const resource = createAudioResource(new Readable().wrap(new Readable({
-          read() { this.push(Buffer.from(result.audioData)); this.push(null); }
-        })), { inputType: StreamType.Arbitrary });
+        const stream = new Readable();
+        stream.push(Buffer.from(result.audioData));
+        stream.push(null);
 
+        const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
         const player = createAudioPlayer();
         connection.subscribe(player);
         player.play(resource);
@@ -70,15 +76,19 @@ async function playSpeech(text, voiceChannel) {
           synthesizer.close();
         });
       }
+    }, err => {
+      console.error("Synthesizer error:", err);
+      if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
     });
 
   } catch (error) {
-    console.error("Voice Error:", error.message);
+    console.error("Σφάλμα σύνδεσης φωνής:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
 
 client.on("voiceStateUpdate", (oldState, newState) => {
+  // Αν κάποιος μπει σε κανάλι και δεν είναι bot
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
     playSpeech(`Καλωσήρθες ${newState.member.displayName}`, newState.channel);
   }
