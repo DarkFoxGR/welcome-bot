@@ -1,15 +1,14 @@
 require('dotenv').config();
 const http = require("http");
-const sodium = require('libsodium-wrappers');
 
-// --- 1. RAILWAY HEALTH CHECK ---
+// --- 1. HEALTH CHECK ΓΙΑ ΤΟ RAILWAY ---
 const PORT = process.env.PORT || 8080;
 http.createServer((req, res) => {
     res.writeHead(200);
-    res.end("Bot is Alive");
+    res.end("Bot is Online");
 }).listen(PORT, "0.0.0.0");
 
-// --- 2. DISCORD SETUP ---
+// --- 2. ΦΟΡΤΩΣΗ DISCORD ---
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { 
     joinVoiceChannel, 
@@ -31,34 +30,32 @@ const client = new Client({
   ]
 });
 
-client.once(Events.ClientReady, async () => {
-    await sodium.ready;
-    console.log("🔒 Encryption: Libsodium is READY");
+client.once(Events.ClientReady, (c) => {
+    console.log(`✅ Η Αθηνά συνδέθηκε: ${c.user.tag}`);
+    console.log("--- Dependency Report ---");
     console.log(generateDependencyReport());
-    console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  await sodium.ready;
-
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
     selfDeaf: false,
-    selfMute: false
   });
 
-  // Force το encryption mode αν η βιβλιοθήκη κολλάει
+  // --- ΤΟ FIX ΓΙΑ ΤΟ ENCRYPTION ERROR ---
   connection.on('stateChange', (oldState, newState) => {
-    if (newState.status === VoiceConnectionStatus.Disconnected) {
-        console.log("⚠️ Αποσυνδέθηκε, προσπάθεια επανασύνδεσης...");
-    }
+      // Αν κολλήσει στο Signaling, προσπαθούμε να "σπρώξουμε" τη σύνδεση
+      if (newState.status === VoiceConnectionStatus.Signalling) {
+          console.log("🔄 Signaling... Trying to negotiate encryption.");
+      }
   });
 
   try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 20000);
-    console.log("🔊 Η σύνδεση έγινε Ready!");
+    // Δίνουμε περισσότερο χρόνο (30s) για το encryption handshake
+    await entersState(connection, VoiceConnectionStatus.Ready, 30000);
+    console.log(`🔊 Η σύνδεση έγινε Ready!`);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
@@ -88,14 +85,14 @@ async function playSpeech(text, voiceChannel) {
     });
 
   } catch (error) {
-    console.error("❌ Error during voice connection:", error.message);
+    console.error("❌ Σφάλμα σύνδεσης:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
 
 client.on("voiceStateUpdate", (oldState, newState) => {
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
-    console.log(`👤 Καλωσόρισμα: ${newState.member.displayName}`);
+    console.log(`👤 Χρήστης μπήκε: ${newState.member.displayName}`);
     playSpeech(`${newState.member.displayName} καλωσήρθες`, newState.channel);
   }
 });
