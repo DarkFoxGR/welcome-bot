@@ -1,11 +1,10 @@
-require('dotenv').config();
+// --- ΕΙΔΙΚΟ PATCH ΓΙΑ ΤΗΝ ΚΡΥΠΤΟΓΡΑΦΗΣΗ ---
 const sodium = require('libsodium-wrappers');
-
-// Αυτό το κομμάτι αναγκάζει το bot να περιμένει την κρυπτογράφηση
-async function initializeSodium() {
+async function loadSodium() {
     await sodium.ready;
 }
-initializeSodium();
+loadSodium();
+// ------------------------------------------
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require("@discordjs/voice");
@@ -13,7 +12,7 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { Readable } = require("stream");
 const http = require("http");
 
-http.createServer((req, res) => { res.write("Athina Active"); res.end(); }).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.write("Bot is running"); res.end(); }).listen(process.env.PORT || 3000);
 
 const client = new Client({
   intents: [
@@ -25,27 +24,35 @@ const client = new Client({
   ]
 });
 
-const SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
+// Το κλειδί σου κατευθείαν για να αποκλείσουμε πρόβλημα μεταβλητών
+const SPEECH_KEY = "9LFKQhTyqkt4XjNZ2Upolvc41QzW50okzE5uPncnJu3FHB3CZ49tJQQJ99BLAC5RqLJXJ3w3AAAYACOGz4dJ";
 const SPEECH_REGION = "westeurope";
 const ADMIN_ID = "364849864611201026";
 
-client.once(Events.ClientReady, (c) => {
-    console.log(`✅ Η Αθηνά ξεκίνησε! Συνδέθηκε ως ${c.user.tag}`);
+client.once(Events.ClientReady, () => {
+    console.log("✅ Η Αθηνά ξεκίνησε με το νέο patch!");
 });
 
 async function playSpeech(text, voiceChannel) {
-  // Βεβαιωνόμαστε ότι η κρυπτογράφηση είναι έτοιμη πριν την κλήση
+  // Επιβεβαίωση κρυπτογράφησης πριν τη σύνδεση
   await sodium.ready;
 
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+    selfDeaf: false,
+  });
+
+  // Δυναμική προσθήκη της βιβλιοθήκης στη σύνδεση
+  connection.on('stateChange', (oldState, newState) => {
+    if (newState.status === VoiceConnectionStatus.Networking) {
+      console.log("Δικτύωση σε εξέλιξη...");
+    }
   });
 
   try {
-    // Περιμένουμε τη σύνδεση να είναι έτοιμη για 5 δευτερόλεπτα
-    await entersState(connection, VoiceConnectionStatus.Ready, 5000);
+    await entersState(connection, VoiceConnectionStatus.Ready, 10000);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
@@ -65,17 +72,18 @@ async function playSpeech(text, voiceChannel) {
         player.on(AudioPlayerStatus.Idle, () => {
           setTimeout(() => {
             if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
-          }, 1000);
+          }, 1500);
           synthesizer.close();
         });
       }
     }, err => {
-      console.error(err);
+      console.error("Synthesizer error:", err);
       connection.destroy();
     });
+
   } catch (error) {
-    console.error("Connection failed:", error);
-    connection.destroy();
+    console.error("Σφάλμα σύνδεσης:", error.message);
+    if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
 
@@ -88,7 +96,9 @@ client.on("voiceStateUpdate", (oldState, newState) => {
 client.on("messageCreate", async (message) => {
   if (message.author.id === ADMIN_ID && message.content.startsWith("!say ")) {
     const voiceChannel = message.member.voice.channel;
-    if (voiceChannel) playSpeech(message.content.replace("!say ", ""), voiceChannel);
+    if (voiceChannel) {
+      playSpeech(message.content.replace("!say ", ""), voiceChannel);
+    }
   }
 });
 
