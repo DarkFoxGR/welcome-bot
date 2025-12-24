@@ -18,20 +18,14 @@ const client = new Client({
   ]
 });
 
-// Δημιουργία του TTS instance
 const tts = new MsEdgeTTS();
 
-client.once("ready", async () => {
-  try {
-    // Ρύθμιση της φωνής Αθηνάς κατά την εκκίνηση του Bot
-    await tts.setMetadata("el-GR-AthinaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN);
-    console.log(`✅ Το Bot είναι Online και η Αθηνά είναι έτοιμη: ${client.user.tag}`);
-  } catch (err) {
-    console.error("Σφάλμα κατά τη ρύθμιση της Αθηνάς:", err);
-  }
+client.once("ready", () => {
+  console.log(`✅ Το Bot είναι Online: ${client.user.tag}`);
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
+  // Έλεγχος αν κάποιος μπήκε σε κανάλι
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
     if (!member || member.user.bot) return;
@@ -49,9 +43,10 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     });
 
     try {
-      const text = `Καλωσήρθες ${member.displayName}`;
+      // Η ΔΙΟΡΘΩΣΗ: Ρυθμίζουμε τη φωνή ΚΑΘΕ ΦΟΡΑ πριν το toStream
+      await tts.setMetadata("el-GR-AthinaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN);
       
-      // Τώρα η κλήση είναι σωστή γιατί το metadata έχει οριστεί στο ready
+      const text = `Καλωσήρθες ${member.displayName}`;
       const readableStream = tts.toStream(text);
       
       const resource = createAudioResource(readableStream);
