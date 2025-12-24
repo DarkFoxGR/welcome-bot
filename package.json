@@ -8,7 +8,7 @@
   "dependencies": {
     "discord.js": "^14.17.3",
     "@discordjs/voice": "^0.18.0",
-    "edge-tts": "^0.0.5",
+    "msedge-tts": "^2.0.0",
     "node-fetch": "^2.7.0",
     "libsodium-wrappers": "^0.7.15",
     "ffmpeg-static": "^5.2.0",
