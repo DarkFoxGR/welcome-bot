@@ -1,14 +1,12 @@
 require('dotenv').config();
 
-// --- ΑΝΑΓΚΑΣΤΙΚΗ ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΡΥΠΤΟΓΡΑΦΗΣΗΣ ---
-const sodium = require('libsodium-wrappers');
-const { setVoiceConfig } = require('@discordjs/voice');
-
-// Λέμε στο bot να περιμένει τη βιβλιοθήκη sodium πριν κάνει οτιδήποτε
-(async () => {
-    await sodium.ready;
-})();
-// ----------------------------------------------
+// ΔΙΟΡΘΩΣΗ ΓΙΑ ΤΟ ΣΦΑΛΜΑ ENCRYPTION
+// Επιβάλλουμε τη χρήση του sodium-native
+try {
+    require('sodium-native');
+} catch (err) {
+    console.log("Sodium load warning, attempting to continue...");
+}
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require("@discordjs/voice");
@@ -33,13 +31,10 @@ const SPEECH_REGION = "westeurope";
 const ADMIN_ID = "364849864611201026";
 
 client.once(Events.ClientReady, (c) => {
-    console.log(`✅ Η Αθηνά συνδέθηκε επιτυχώς ως ${c.user.tag}`);
+    console.log(`✅ Η Αθηνά είναι Online! Συνδέθηκε ως ${c.user.tag}`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  // Επιβεβαίωση ότι η κρυπτογράφηση είναι έτοιμη
-  await sodium.ready;
-
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
@@ -48,8 +43,8 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    // Περιμένουμε τη σύνδεση να είναι "Ready"
-    await entersState(connection, VoiceConnectionStatus.Ready, 15000);
+    // Δίνουμε περισσότερο χρόνο στη σύνδεση (20 δευτερόλεπτα)
+    await entersState(connection, VoiceConnectionStatus.Ready, 20000);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
@@ -58,10 +53,11 @@ async function playSpeech(text, voiceChannel) {
 
     synthesizer.speakSsmlAsync(ssml, result => {
       if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-        const resource = createAudioResource(new Readable().wrap(new Readable({
-          read() { this.push(Buffer.from(result.audioData)); this.push(null); }
-        })));
+        const stream = new Readable();
+        stream.push(Buffer.from(result.audioData));
+        stream.push(null);
 
+        const resource = createAudioResource(stream);
         const player = createAudioPlayer();
         connection.subscribe(player);
         player.play(resource);
@@ -74,12 +70,12 @@ async function playSpeech(text, voiceChannel) {
         });
       }
     }, err => {
-      console.error("Synthesizer error:", err);
+      console.error(err);
       if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
     });
 
   } catch (error) {
-    console.error("Connection failed:", error.message);
+    console.error("Σφάλμα σύνδεσης:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
