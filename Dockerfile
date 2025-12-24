@@ -1,12 +1,22 @@
-FROM node:20-bookworm-slim
+FROM node:20-bookworm
 
-# Εγκατάσταση μόνο του FFmpeg
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# Εγκαθιστούμε τα πάντα για να μην έχει δικαιολογία το σύστημα
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3 \
+    libsodium-dev \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
+
 COPY package*.json ./
-RUN npm install
+
+# Καθαρή εγκατάσταση και "χτίσιμο" των native modules
+RUN npm install && npm rebuild sodium-native
+
 COPY . .
 
 EXPOSE 8000
-CMD [ "node", "index.js" ]
+
+CMD ["node", "index.js"]
