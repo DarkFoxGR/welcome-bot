@@ -6,7 +6,7 @@ const voice = require('@discordjs/voice');
 
 async function prepareEncryption() {
     await sodium.ready;
-    console.log("🔒 Libsodium is ready and injected into voice library.");
+    console.log("🔒 Libsodium is ready.");
 }
 prepareEncryption();
 
@@ -17,23 +17,19 @@ const {
     createAudioResource, 
     entersState, 
     VoiceConnectionStatus, 
-    StreamType,
-    generateDependencyReport
+    StreamType 
 } = require("@discordjs/voice");
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { PassThrough } = require("stream");
 const http = require("http");
 
-// --- RAILWAY HEALTH CHECK FIX ---
-// Πρέπει να απαντάμε στο Railway για να μην μας κλείνει το container
+// --- ΑΥΤΟ ΕΙΝΑΙ ΤΟ ΚΛΕΙΔΙ ΓΙΑ ΤΟ RAILWAY ---
 const port = process.env.PORT || 8080;
-const server = http.createServer((req, res) => { 
+http.createServer((req, res) => { 
     res.writeHead(200); 
-    res.end("Bot Status: Online"); 
-});
-
-server.listen(port, "0.0.0.0", () => {
-    console.log(`🌐 Health Check Server active on port ${port}`);
+    res.end("Bot is Healthy"); 
+}).listen(port, "0.0.0.0", () => {
+    console.log(`🌐 Health Check Server on port ${port}`);
 });
 
 const client = new Client({
@@ -45,13 +41,10 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, (c) => {
-    console.log(`✅ Η Αθηνά ξεκίνησε επιτυχώς ως: ${c.user.tag}`);
-    console.log("--- Dependency Report ---");
-    console.log(generateDependencyReport());
+    console.log(`✅ Η Αθηνά ξεκίνησε: ${c.user.tag}`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  // Πάντα περιμένουμε την κρυπτογράφηση πριν από κάθε σύνδεση
   await sodium.ready;
 
   const connection = joinVoiceChannel({
@@ -62,9 +55,9 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    // Αναμονή για Ready κατάσταση
+    // Περιμένουμε τη σύνδεση να γίνει Ready
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
-    console.log(`🔊 Σύνδεση στο κανάλι: ${voiceChannel.name}`);
+    console.log(`🔊 Μπήκα στο κανάλι!`);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
@@ -94,16 +87,14 @@ async function playSpeech(text, voiceChannel) {
             if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
                 connection.destroy();
             }
-          }, 1500);
+          }, 2000);
           synthesizer.close();
         });
-
-        player.on('error', err => console.error("❌ Player Error:", err.message));
       }
     });
 
   } catch (error) {
-    console.error("❌ Σφάλμα Σύνδεσης:", error.message);
+    console.error("❌ Σφάλμα:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
         connection.destroy();
     }
@@ -111,10 +102,8 @@ async function playSpeech(text, voiceChannel) {
 }
 
 client.on("voiceStateUpdate", (oldState, newState) => {
-  // Ανίχνευση εισόδου χρήστη (όχι bot)
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
-    console.log(`👤 Χρήστης: ${newState.member.displayName}`);
-    playSpeech(`${newState.member.displayName} καλωσήρθες στην παρέα μας`, newState.channel);
+    playSpeech(`Καλωσήρθες ${newState.member.displayName}`, newState.channel);
   }
 });
 
