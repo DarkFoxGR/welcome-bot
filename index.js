@@ -2,12 +2,12 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 const http = require("http");
-const { Readable } = require("stream"); // Απαραίτητο για τη μετατροπή
+const { Readable } = require("stream");
 const libsodium = require("libsodium-wrappers");
 
 // Web Server για το Render
 http.createServer((req, res) => {
-  res.write("Bot is running with Athina!");
+  res.write("Bot is running with Athina Neural!");
   res.end();
 }).listen(process.env.PORT || 3000);
 
@@ -19,6 +19,7 @@ const client = new Client({
   ]
 });
 
+// Δημιουργία του TTS χωρίς παραμέτρους εδώ
 const tts = new MsEdgeTTS();
 
 client.once("ready", () => {
@@ -43,17 +44,15 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     });
 
     try {
-      // Ρύθμιση φωνής
-      await tts.setMetadata("el-GR-AthinaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN);
-      
       const text = `Καλωσήρθες ${member.displayName}`;
       
-      // Λήψη των δεδομένων ήχου
-      const audioData = await tts.toStream(text);
+      // Η ΝΕΑ ΜΕΘΟΔΟΣ: Ορίζουμε τη φωνή απευθείας στο toStream
+      const audioData = await tts.toStream(text, {
+        voice: "el-GR-AthinaNeural",
+        outputFormat: OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN
+      });
       
-      // ΜΕΤΑΤΡΟΠΗ: Μετατρέπουμε το αντικείμενο σε Stream που καταλαβαίνει το Discord
       const readableStream = Readable.from(audioData);
-      
       const resource = createAudioResource(readableStream);
       const player = createAudioPlayer();
 
