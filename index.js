@@ -1,88 +1,67 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
-const { Readable } = require("stream"); // Εργαλείο για τη μετατροπή
+const { Readable } = require("stream");
 const http = require("http");
 
-// Web Server για το Render
-http.createServer((req, res) => {
-  res.write("Bot is running with Athina Neural (Safe Mode)");
-  res.end();
-}).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.write("Athina is ready"); res.end(); }).listen(process.env.PORT || 3000);
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMembers
-  ]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMembers]
 });
 
 const tts = new MsEdgeTTS();
 
-client.once("ready", () => {
-  console.log(`✅ Το Bot είναι Online: ${client.user.tag}`);
-});
+client.once("ready", () => console.log(`✅ Bot Online: ${client.user.tag}`));
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
     if (!member || member.user.bot) return;
 
-    console.log(`🎤 Καλωσόρισμα: ${member.displayName}`);
-
     const connection = joinVoiceChannel({
       channelId: newState.channelId,
       guildId: newState.guild.id,
       adapterCreator: newState.guild.voiceAdapterCreator,
-      selfDeaf: false,
-      selfMute: false
     });
 
     try {
       const text = `Καλωσήρθες ${member.displayName}`;
-      
-      // 1. Παίρνουμε τον ήχο ως Raw Data (Buffer)
-      const audioBuffer = await tts.toRaw(text, {
-        voice: "el-GR-AthinaNeural",
-        outputFormat: OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN
-      });
-      
-      // 2. Μετατρέπουμε το Buffer σε Readable Stream χειροκίνητα
+      let audioBuffer;
+
+      // ΑΥΤΟΜΑΤΟΣ ΕΛΕΓΧΟΣ ΜΕΘΟΔΟΥ (ΓΙΑ ΝΑ ΜΗΝ ΞΑΝΑΒΓΑΛΕΙ "NOT A FUNCTION")
+      if (typeof tts.toRaw === 'function') {
+        audioBuffer = await tts.toRaw(text, { voice: "el-GR-AthinaNeural" });
+      } else if (typeof tts.toBuffer === 'function') {
+        audioBuffer = await tts.toBuffer(text, { voice: "el-GR-AthinaNeural" });
+      } else {
+        // Αν αποτύχουν όλα, χρησιμοποιούμε το Stream και το μετατρέπουμε
+        const stream = await tts.toStream(text, { voice: "el-GR-AthinaNeural" });
+        return playResource(connection, stream);
+      }
+
       const stream = new Readable();
       stream.push(audioBuffer);
-      stream.push(null); // Τέλος της ροής
-      
-      // 3. Δημιουργία του resource για το Discord
-      const resource = createAudioResource(stream);
-      const player = createAudioPlayer();
-
-      connection.subscribe(player);
-      player.play(resource);
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        setTimeout(() => {
-          if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
-            connection.destroy();
-          }
-        }, 2000);
-      });
-
-      player.on('error', error => {
-        console.error(`Audio Error: ${error.message}`);
-        if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
-      });
+      stream.push(null);
+      playResource(connection, stream);
 
     } catch (err) {
       console.error("TTS Error:", err);
-      if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
+      connection.destroy();
     }
   }
 });
 
-process.on('uncaughtException', (err) => {
-    if (err.code === 'ERR_SOCKET_DGRAM_NOT_RUNNING') return;
-    console.error('❌ Uncaught Exception:', err);
-});
+function playResource(connection, stream) {
+  const resource = createAudioResource(stream);
+  const player = createAudioPlayer();
+  connection.subscribe(player);
+  player.play(resource);
+  player.on(AudioPlayerStatus.Idle, () => {
+    setTimeout(() => { if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy(); }, 2000);
+  });
+}
+
+process.on('uncaughtException', (err) => { if (err.code !== 'ERR_SOCKET_DGRAM_NOT_RUNNING') console.error(err); });
 
 client.login(process.env.DISCORD_TOKEN);
