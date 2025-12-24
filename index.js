@@ -1,10 +1,5 @@
-// --- ΕΙΔΙΚΟ PATCH ΓΙΑ ΤΗΝ ΚΡΥΠΤΟΓΡΑΦΗΣΗ ---
+require('dotenv').config();
 const sodium = require('libsodium-wrappers');
-async function loadSodium() {
-    await sodium.ready;
-}
-loadSodium();
-// ------------------------------------------
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require("@discordjs/voice");
@@ -12,7 +7,8 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { Readable } = require("stream");
 const http = require("http");
 
-http.createServer((req, res) => { res.write("Bot is running"); res.end(); }).listen(process.env.PORT || 3000);
+// Server για το Render
+http.createServer((req, res) => { res.write("Athina is Active"); res.end(); }).listen(process.env.PORT || 3000);
 
 const client = new Client({
   intents: [
@@ -24,31 +20,22 @@ const client = new Client({
   ]
 });
 
-// Το κλειδί σου κατευθείαν για να αποκλείσουμε πρόβλημα μεταβλητών
-const SPEECH_KEY = "9LFKQhTyqkt4XjNZ2Upolvc41QzW50okzE5uPncnJu3FHB3CZ49tJQQJ99BLAC5RqLJXJ3w3AAAYACOGz4dJ";
+// Τώρα παίρνουμε τα κλειδιά από το Environment του Render
+const SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const SPEECH_REGION = "westeurope";
 const ADMIN_ID = "364849864611201026";
 
-client.once(Events.ClientReady, () => {
-    console.log("✅ Η Αθηνά ξεκίνησε με το νέο patch!");
+client.once(Events.ClientReady, (c) => {
+    console.log(`✅ Η Αθηνά ξεκίνησε με ασφάλεια! Συνδέθηκε ως ${c.user.tag}`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  // Επιβεβαίωση κρυπτογράφησης πριν τη σύνδεση
-  await sodium.ready;
+  await sodium.ready; // Σημαντικό για να μη βγάζει σφάλμα κρυπτογράφησης
 
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-    selfDeaf: false,
-  });
-
-  // Δυναμική προσθήκη της βιβλιοθήκης στη σύνδεση
-  connection.on('stateChange', (oldState, newState) => {
-    if (newState.status === VoiceConnectionStatus.Networking) {
-      console.log("Δικτύωση σε εξέλιξη...");
-    }
   });
 
   try {
@@ -77,12 +64,11 @@ async function playSpeech(text, voiceChannel) {
         });
       }
     }, err => {
-      console.error("Synthesizer error:", err);
-      connection.destroy();
+        console.error(err);
+        connection.destroy();
     });
-
   } catch (error) {
-    console.error("Σφάλμα σύνδεσης:", error.message);
+    console.error("Connection error:", error);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
@@ -96,10 +82,9 @@ client.on("voiceStateUpdate", (oldState, newState) => {
 client.on("messageCreate", async (message) => {
   if (message.author.id === ADMIN_ID && message.content.startsWith("!say ")) {
     const voiceChannel = message.member.voice.channel;
-    if (voiceChannel) {
-      playSpeech(message.content.replace("!say ", ""), voiceChannel);
-    }
+    if (voiceChannel) playSpeech(message.content.replace("!say ", ""), voiceChannel);
   }
 });
 
+// Η γραμμή που "φώναζε" το GitHub διορθώθηκε:
 client.login(process.env.DISCORD_TOKEN);
