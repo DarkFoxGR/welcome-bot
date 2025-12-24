@@ -1,26 +1,18 @@
 require('dotenv').config();
+const sodium = require('libsodium-wrappers');
 
-// --- FORCE TWEETNACL PATCH ---
-const nacl = require('tweetnacl');
-// Αυτό το κομμάτι λέει στο Discord Voice να χρησιμοποιήσει το tweetnacl
-// παρόλο που το report λέει ότι δεν το βλέπει αυτόματα.
-// -----------------------------
+// ΠΑΤΣ ΓΙΑ ΤΟ ΣΦΑΛΜΑ ENCRYPTION
+(async () => {
+    await sodium.ready;
+})();
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
-const { 
-    joinVoiceChannel, 
-    createAudioPlayer, 
-    createAudioResource, 
-    AudioPlayerStatus, 
-    VoiceConnectionStatus, 
-    entersState,
-    StreamType 
-} = require("@discordjs/voice");
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require("@discordjs/voice");
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { Readable } = require("stream");
 const http = require("http");
 
-http.createServer((req, res) => { res.write("Athina Ready"); res.end(); }).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.write("Active"); res.end(); }).listen(process.env.PORT || 3000);
 
 const client = new Client({
   intents: [
@@ -41,17 +33,19 @@ client.once(Events.ClientReady, (c) => {
 });
 
 async function playSpeech(text, voiceChannel) {
+  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΗΝ ΚΡΥΠΤΟΓΡΑΦΗΣΗ
+  await sodium.ready;
+
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-    // Προσθήκη επιλογών κρυπτογράφησης
     selfDeaf: false,
   });
 
   try {
-    // Περιμένουμε τη σύνδεση να είναι Ready
-    await entersState(connection, VoiceConnectionStatus.Ready, 20000);
+    // Περιμένουμε τη σύνδεση να είναι Ready για 15 δευτερόλεπτα
+    await entersState(connection, VoiceConnectionStatus.Ready, 15000);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
@@ -62,9 +56,7 @@ async function playSpeech(text, voiceChannel) {
       if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
         const resource = createAudioResource(new Readable().wrap(new Readable({
           read() { this.push(Buffer.from(result.audioData)); this.push(null); }
-        })), {
-            inputType: StreamType.Arbitrary, // Βοηθάει στην αναγνώριση του stream χωρίς opus
-        });
+        })));
 
         const player = createAudioPlayer();
         connection.subscribe(player);
@@ -78,12 +70,12 @@ async function playSpeech(text, voiceChannel) {
         });
       }
     }, err => {
-      console.error("Synthesizer error:", err);
+      console.error(err);
       if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
     });
 
   } catch (error) {
-    console.error("Σφάλμα σύνδεσης:", error.message);
+    console.error("Connection failed:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
