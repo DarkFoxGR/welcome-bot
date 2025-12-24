@@ -6,7 +6,7 @@
     "discord.js": "^14.15.3",
     "@discordjs/voice": "^0.17.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.37.0",
-    "libsodium-wrappers": "^0.7.13",
+    "sodium-native": "^4.1.1",
     "dotenv": "^16.4.5",
     "opusscript": "^0.0.8"
   }
