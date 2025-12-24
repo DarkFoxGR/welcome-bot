@@ -1,11 +1,11 @@
 FROM node:20-bookworm
 
-# Εγκατάσταση απαραίτητων εργαλείων κρυπτογράφησης
+# Εγκατάσταση απαραίτητων εργαλείων για το sodium-native
 RUN apt-get update && apt-get install -y \
     build-essential \
+    python3 \
     libsodium-dev \
     ffmpeg \
-    python3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
