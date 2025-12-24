@@ -1,5 +1,14 @@
 require('dotenv').config();
+
+// --- ΑΝΑΓΚΑΣΤΙΚΗ ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΡΥΠΤΟΓΡΑΦΗΣΗΣ ---
 const sodium = require('libsodium-wrappers');
+const { setVoiceConfig } = require('@discordjs/voice');
+
+// Λέμε στο bot να περιμένει τη βιβλιοθήκη sodium πριν κάνει οτιδήποτε
+(async () => {
+    await sodium.ready;
+})();
+// ----------------------------------------------
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require("@discordjs/voice");
@@ -7,8 +16,7 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { Readable } = require("stream");
 const http = require("http");
 
-// Απλό server για το Render
-http.createServer((req, res) => { res.write("Athina Bot Active"); res.end(); }).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.write("Athina Online"); res.end(); }).listen(process.env.PORT || 3000);
 
 const client = new Client({
   intents: [
@@ -20,28 +28,28 @@ const client = new Client({
   ]
 });
 
-// Χρήση Environment Variables από το Render
 const SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const SPEECH_REGION = "westeurope";
 const ADMIN_ID = "364849864611201026";
 
 client.once(Events.ClientReady, (c) => {
-    console.log(`✅ Η Αθηνά ξεκίνησε! Συνδέθηκε ως ${c.user.tag}`);
+    console.log(`✅ Η Αθηνά συνδέθηκε επιτυχώς ως ${c.user.tag}`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  // ΠΕΡΙΜΕΝΟΥΜΕ να φορτώσει η κρυπτογράφηση πριν συνδεθούμε
+  // Επιβεβαίωση ότι η κρυπτογράφηση είναι έτοιμη
   await sodium.ready;
 
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+    selfDeaf: false,
   });
 
   try {
-    // Περιμένουμε τη σύνδεση να είναι έτοιμη
-    await entersState(connection, VoiceConnectionStatus.Ready, 10000);
+    // Περιμένουμε τη σύνδεση να είναι "Ready"
+    await entersState(connection, VoiceConnectionStatus.Ready, 15000);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
@@ -50,11 +58,10 @@ async function playSpeech(text, voiceChannel) {
 
     synthesizer.speakSsmlAsync(ssml, result => {
       if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-        const stream = new Readable();
-        stream.push(Buffer.from(result.audioData));
-        stream.push(null);
+        const resource = createAudioResource(new Readable().wrap(new Readable({
+          read() { this.push(Buffer.from(result.audioData)); this.push(null); }
+        })));
 
-        const resource = createAudioResource(stream);
         const player = createAudioPlayer();
         connection.subscribe(player);
         player.play(resource);
@@ -67,12 +74,12 @@ async function playSpeech(text, voiceChannel) {
         });
       }
     }, err => {
-      console.error(err);
+      console.error("Synthesizer error:", err);
       if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
     });
 
   } catch (error) {
-    console.error("Σφάλμα σύνδεσης:", error);
+    console.error("Connection failed:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
@@ -90,5 +97,4 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-// Το Token διαβάζεται από το Environment Variable που έφτιαξες στο Render
 client.login(process.env.DISCORD_TOKEN);
