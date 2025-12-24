@@ -44,25 +44,15 @@ async function playSpeech(text, voiceChannel) {
     selfDeaf: false,
   });
 
-  // --- ΤΟ FIX ΓΙΑ ΤΟ ENCRYPTION ERROR ---
-  connection.on('stateChange', (oldState, newState) => {
-      // Αν κολλήσει στο Signaling, προσπαθούμε να "σπρώξουμε" τη σύνδεση
-      if (newState.status === VoiceConnectionStatus.Signalling) {
-          console.log("🔄 Signaling... Trying to negotiate encryption.");
-      }
-  });
-
   try {
-    // Δίνουμε περισσότερο χρόνο (30s) για το encryption handshake
+    // Δίνουμε χρόνο για το encryption handshake
     await entersState(connection, VoiceConnectionStatus.Ready, 30000);
     console.log(`🔊 Η σύνδεση έγινε Ready!`);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
     
-    const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="el-GR">
-        <voice name="el-GR-AthinaNeural"><prosody rate="0.9">${text}</prosody></voice>
-      </speak>`;
+    const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="el-GR"><voice name="el-GR-AthinaNeural"><prosody rate="0.9">${text}</prosody></voice></speak>`;
 
     synthesizer.speakSsmlAsync(ssml, result => {
       if (result.audioData) {
