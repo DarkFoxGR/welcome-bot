@@ -7,7 +7,7 @@ const libsodium = require("libsodium-wrappers");
 
 // Web Server για το Render
 http.createServer((req, res) => {
-  res.write("Bot is running with Athina Neural!");
+  res.write("Bot is running with Athina Neural (Stream Fix)!");
   res.end();
 }).listen(process.env.PORT || 3000);
 
@@ -45,16 +45,11 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     try {
       const text = `Καλωσήρθες ${member.displayName}`;
       
-      // Η ΔΙΟΡΘΩΣΗ: Χρησιμοποιούμε tts.toRaw αντί για toBuffer
-      const audioData = await tts.toRaw(text, {
-        voice: "el-GR-AthinaNeural",
-        outputFormat: OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN
-      });
+      // Ρύθμιση Metadata
+      await tts.setMetadata("el-GR-AthinaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN);
       
-      // Μετατροπή των Raw δεδομένων σε Readable Stream
-      const readableStream = new Readable();
-      readableStream.push(audioData);
-      readableStream.push(null);
+      // Χρήση toStream (χωρίς await στην κλήση της συνάρτησης, αλλά await στο αποτέλεσμα)
+      const readableStream = tts.toStream(text);
       
       const resource = createAudioResource(readableStream);
       const player = createAudioPlayer();
