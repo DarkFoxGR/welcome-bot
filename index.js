@@ -11,11 +11,11 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMembers]
 });
 
-// Ρυθμίσεις Azure - Βάλε το κλειδί σου στο Render Environment Variables
+// Ρυθμίσεις Azure
 const SPEECH_KEY = "9LFKQhTyqkt4XjNZ2Upolvc41QzW50okzE5uPncnJu3FHB3CZ49tJQQJ99BLAC5RqLJXJ3w3AAAYACOGz4dJ";
 const SPEECH_REGION = "westeurope";
 
-client.once("ready", () => console.log(`✅ Η Αθηνά είναι έτοιμη: ${client.user.tag}`));
+client.once("ready", () => console.log(`✅ Η Αθηνά είναι έτοιμη και ρυθμισμένη: ${client.user.tag}`));
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
   // Έλεγχος αν κάποιος μπήκε σε κανάλι (και δεν είναι bot)
@@ -23,7 +23,7 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     const member = newState.member;
     if (!member || member.user.bot) return;
 
-    console.log(`🔊 Καλωσόρισμα στον χρήστη: ${member.displayName}`);
+    console.log(`🔊 Καλωσόρισμα (πιο αργό) στον χρήστη: ${member.displayName}`);
 
     const connection = joinVoiceChannel({
       channelId: newState.channelId,
@@ -33,13 +33,20 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
     try {
       const speechConfig = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
-      speechConfig.speechSynthesisVoiceName = "el-GR-AthinaNeural";
-      
       const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
 
-      const text = `Καλωσήρθες στο κανάλι μας, ${member.displayName}`;
+      // Το κείμενο και η ρύθμιση ταχύτητας (rate="0.85")
+      const welcomeText = `Καλωσήρθες στο κανάλι μας, ${member.displayName}`;
+      const ssml = `
+        <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="el-GR">
+          <voice name="el-GR-AthinaNeural">
+            <prosody rate="0.85">
+              ${welcomeText}
+            </prosody>
+          </voice>
+        </speak>`;
 
-      synthesizer.speakTextAsync(text, result => {
+      synthesizer.speakSsmlAsync(ssml, result => {
         if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
           const buffer = Buffer.from(result.audioData);
           const stream = new Readable();
@@ -61,7 +68,7 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
         }
       }, err => {
         console.error("TTS Error:", err);
-        connection.destroy();
+        if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
         synthesizer.close();
       });
 
