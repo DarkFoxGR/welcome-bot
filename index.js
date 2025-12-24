@@ -1,15 +1,13 @@
 require('dotenv').config();
 
-// --- MANUAL ENCRYPTION PATCH ---
+// --- FIXED ENCRYPTION LOADING ---
 const sodium = require('libsodium-wrappers');
-const voice = require('@discordjs/voice');
 
-// Περιμένουμε το sodium και το "δηλώνουμε" στη βιβλιοθήκη
-async function prepareEncryption() {
+// Απλή αναμονή για το sodium χωρίς να καλούμε μη υπάρχουσες συναρτήσεις
+(async () => {
     await sodium.ready;
-    console.log("🔒 Libsodium is ready. Version:", sodium.libsodium_version_string());
-}
-prepareEncryption();
+    console.log("🔒 Η κρυπτογράφηση Libsodium είναι έτοιμη!");
+})();
 // -------------------------------
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
@@ -26,10 +24,11 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { PassThrough } = require("stream");
 const http = require("http");
 
+// Health Check Server για το Railway
 const port = process.env.PORT || 8080;
 http.createServer((req, res) => { 
     res.writeHead(200); 
-    res.end("Bot is Online with Encryption Patch"); 
+    res.end("Bot is Online"); 
 }).listen(port);
 
 const client = new Client({
@@ -45,7 +44,7 @@ client.once(Events.ClientReady, () => {
 });
 
 async function playSpeech(text, voiceChannel) {
-  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΗΝ ΚΡΥΠΤΟΓΡΑΦΗΣΗ ΠΡΙΝ ΤΟ JOIN
+  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΗΝ ΚΡΥΠΤΟΓΡΑΦΗΣΗ
   await sodium.ready;
 
   const connection = joinVoiceChannel({
@@ -56,9 +55,9 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    // Σημαντικό: Περιμένουμε τη σύνδεση να γίνει Ready
+    // Αναμονή σύνδεσης
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
-    console.log(`🔊 Επιτυχής σύνδεση στο κανάλι!`);
+    console.log(`🔊 Σύνδεση επιτυχής στο κανάλι.`);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
