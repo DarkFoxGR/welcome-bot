@@ -1,7 +1,15 @@
 FROM node:20-bookworm
-RUN apt-get update && apt-get install -y ffmpeg python3 build-essential && rm -rf /var/lib/apt/lists/*
+
+# Εγκατάσταση απαραίτητων εργαλείων για το sodium-native
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3 \
+    libsodium-dev \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /usr/src/app
 COPY package*.json ./
-RUN npm install --include=dev
+RUN npm install
 COPY . .
 CMD ["node", "index.js"]
