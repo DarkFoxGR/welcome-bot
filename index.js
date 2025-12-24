@@ -1,13 +1,12 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
-const http = require("http");
 const { Readable } = require("stream");
-const libsodium = require("libsodium-wrappers");
+const http = require("http");
 
 // Web Server για το Render
 http.createServer((req, res) => {
-  res.write("Bot is running with Athina Neural (Stream Fix)!");
+  res.write("Bot is running with Athina Neural");
   res.end();
 }).listen(process.env.PORT || 3000);
 
@@ -22,17 +21,16 @@ const client = new Client({
 const tts = new MsEdgeTTS();
 
 client.once("ready", () => {
-  console.log(`✅ Το Bot είναι Online: ${client.user.tag}`);
+  console.log(`✅ Το Bot είναι Online με την Αθηνά: ${client.user.tag}`);
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
+  // Αν κάποιος μπει σε κανάλι
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
     if (!member || member.user.bot) return;
 
-    console.log(`🎤 Καλωσόρισμα στον χρήστη: ${member.displayName}`);
-
-    await libsodium.ready;
+    console.log(`🎤 Καλωσόρισμα: ${member.displayName}`);
 
     const connection = joinVoiceChannel({
       channelId: newState.channelId,
@@ -45,13 +43,13 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     try {
       const text = `Καλωσήρθες ${member.displayName}`;
       
-      // Ρύθμιση Metadata
+      // Ρύθμιση φωνής Αθηνάς
       await tts.setMetadata("el-GR-AthinaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN);
       
-      // Χρήση toStream (χωρίς await στην κλήση της συνάρτησης, αλλά await στο αποτέλεσμα)
-      const readableStream = tts.toStream(text);
+      // Λήψη του Stream
+      const audioStream = tts.toStream(text);
       
-      const resource = createAudioResource(readableStream);
+      const resource = createAudioResource(audioStream);
       const player = createAudioPlayer();
 
       connection.subscribe(player);
@@ -67,20 +65,17 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
       player.on('error', error => {
         console.error(`Audio Error: ${error.message}`);
-        if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
-          connection.destroy();
-        }
+        if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
       });
 
     } catch (err) {
       console.error("TTS Error:", err);
-      if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
-        connection.destroy();
-      }
+      if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
     }
   }
 });
 
+// Προστασία από κρασαρίσματα
 process.on('uncaughtException', (err) => {
     if (err.code === 'ERR_SOCKET_DGRAM_NOT_RUNNING') return;
     console.error('❌ Uncaught Exception:', err);
