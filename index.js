@@ -1,12 +1,11 @@
 require('dotenv').config();
 
-// ΔΙΟΡΘΩΣΗ ΓΙΑ ΤΟ ΣΦΑΛΜΑ ENCRYPTION
-// Επιβάλλουμε τη χρήση του sodium-native
-try {
-    require('sodium-native');
-} catch (err) {
-    console.log("Sodium load warning, attempting to continue...");
-}
+// ΑΝΑΓΚΑΣΤΙΚΟ PATCH ΓΙΑ ΤΟ ΣΦΑΛΜΑ ENCRYPTION
+const nacl = require('tweetnacl');
+const { generateDependencyReport } = require('@discordjs/voice');
+console.log("--- VOICE DEPENDENCY REPORT ---");
+console.log(generateDependencyReport()); 
+// ------------------------------------------
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require("@discordjs/voice");
@@ -14,7 +13,7 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { Readable } = require("stream");
 const http = require("http");
 
-http.createServer((req, res) => { res.write("Athina Online"); res.end(); }).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.write("Bot is Active"); res.end(); }).listen(process.env.PORT || 3000);
 
 const client = new Client({
   intents: [
@@ -31,7 +30,7 @@ const SPEECH_REGION = "westeurope";
 const ADMIN_ID = "364849864611201026";
 
 client.once(Events.ClientReady, (c) => {
-    console.log(`✅ Η Αθηνά είναι Online! Συνδέθηκε ως ${c.user.tag}`);
+    console.log(`✅ Η Αθηνά ξεκίνησε! Συνδέθηκε ως ${c.user.tag}`);
 });
 
 async function playSpeech(text, voiceChannel) {
@@ -43,7 +42,7 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    // Δίνουμε περισσότερο χρόνο στη σύνδεση (20 δευτερόλεπτα)
+    // Περιμένουμε τη σύνδεση να είναι Ready (έως 20 δευτερόλεπτα)
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
@@ -53,11 +52,10 @@ async function playSpeech(text, voiceChannel) {
 
     synthesizer.speakSsmlAsync(ssml, result => {
       if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-        const stream = new Readable();
-        stream.push(Buffer.from(result.audioData));
-        stream.push(null);
+        const resource = createAudioResource(new Readable().wrap(new Readable({
+          read() { this.push(Buffer.from(result.audioData)); this.push(null); }
+        })));
 
-        const resource = createAudioResource(stream);
         const player = createAudioPlayer();
         connection.subscribe(player);
         player.play(resource);
