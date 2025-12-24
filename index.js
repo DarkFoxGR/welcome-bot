@@ -1,7 +1,6 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
-const { Readable } = require("stream");
 const http = require("http");
 
 // Web Server για το Render
@@ -18,6 +17,7 @@ const client = new Client({
   ]
 });
 
+// Δημιουργία του TTS instance
 const tts = new MsEdgeTTS();
 
 client.once("ready", () => {
@@ -43,11 +43,11 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     try {
       const text = `Καλωσήρθες ${member.displayName}`;
       
-      // Ρύθμιση φωνής Αθηνάς
-      await tts.setMetadata("el-GR-AthinaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN);
-      
-      // Λήψη του Stream
-      const audioStream = tts.toStream(text);
+      // Στην έκδοση 2.0.0 χρησιμοποιούμε το toStream με αυτόν τον τρόπο:
+      const audioStream = await tts.toStream(text, {
+        voice: "el-GR-AthinaNeural",
+        outputFormat: OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN
+      });
       
       const resource = createAudioResource(audioStream);
       const player = createAudioPlayer();
@@ -75,7 +75,7 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   }
 });
 
-// Προστασία από κρασαρίσματα
+// Προστασία από κρασαρίσματα (Socket Error)
 process.on('uncaughtException', (err) => {
     if (err.code === 'ERR_SOCKET_DGRAM_NOT_RUNNING') return;
     console.error('❌ Uncaught Exception:', err);
