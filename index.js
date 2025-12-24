@@ -1,13 +1,12 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
-const { MsEdgeTTS } = require("edge-tts");
+const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts"); // Η σωστή βιβλιοθήκη
 const http = require("http");
-const { Readable } = require("stream");
 const libsodium = require("libsodium-wrappers");
 
 // Web Server για το Render
 http.createServer((req, res) => {
-  res.write("Bot is running with Athina Voice!");
+  res.write("Bot is running with Athina Neural Voice!");
   res.end();
 }).listen(process.env.PORT || 3000);
 
@@ -19,6 +18,7 @@ const client = new Client({
   ]
 });
 
+// Δημιουργία του TTS instance
 const tts = new MsEdgeTTS();
 
 client.once("ready", () => {
@@ -26,7 +26,6 @@ client.once("ready", () => {
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
-  // Έλεγχος αν κάποιος μπήκε σε κανάλι
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
     if (!member || member.user.bot) return;
@@ -44,13 +43,15 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     });
 
     try {
-      // Ρύθμιση της φωνής "Αθηνά"
-      await tts.setMetadata("el-GR-AthinaNeural", "output_format_24khz_48kbps_mono_siren");
-      
       const text = `Καλωσήρθες ${member.displayName}`;
-      const filePath = await tts.toStream(text);
       
-      const resource = createAudioResource(filePath);
+      // Χρήση της φωνής Αθηνάς με τη νέα βιβλιοθήκη
+      const readableStream = tts.toStream(text, {
+        voice: "el-GR-AthinaNeural",
+        outputFormat: OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN
+      });
+      
+      const resource = createAudioResource(readableStream);
       const player = createAudioPlayer();
 
       connection.subscribe(player);
@@ -80,17 +81,13 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   }
 });
 
-// ΔΙΟΡΘΩΣΗ ΓΙΑ ΤΟ CRASH
+// ΔΙΟΡΘΩΣΗ ΓΙΑ ΤΟ CRASH (SOCKET ERROR)
 process.on('uncaughtException', (err) => {
     if (err.code === 'ERR_SOCKET_DGRAM_NOT_RUNNING') {
         console.warn('⚠️ Αποφεύχθηκε κρασάρισμα στο Voice Socket.');
         return;
     }
     console.error('❌ Uncaught Exception:', err);
-});
-
-process.on('unhandledRejection', (reason) => {
-    console.error('❌ Unhandled Rejection:', reason);
 });
 
 client.login(process.env.DISCORD_TOKEN);
