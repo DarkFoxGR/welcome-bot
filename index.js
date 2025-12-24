@@ -5,13 +5,14 @@ const http = require("http");
 const PORT = process.env.PORT || 8080;
 http.createServer((req, res) => {
     res.writeHead(200);
-    res.end("Bot Status: Ready");
+    res.end("Health Check OK");
 }).listen(PORT, "0.0.0.0", () => {
     console.log(`🌐 Health Check Server on port ${PORT}`);
 });
 
-// --- 2. ΦΟΡΤΩΣΗ ΒΙΒΛΙΟΘΗΚΩΝ ---
-const nacl = require('tweetnacl'); // Χρήση tweetnacl για εγγυημένη συμβατότητα
+// --- 2. ΦΟΡΤΩΣΗ ΚΡΥΠΤΟΓΡΑΦΗΣΗΣ ---
+// Χρησιμοποιούμε το libsodium-wrappers που υποστηρίζει aead_aes256_gcm
+const sodium = require('libsodium-wrappers');
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { 
     joinVoiceChannel, 
@@ -33,12 +34,17 @@ const client = new Client({
   ]
 });
 
-client.once(Events.ClientReady, (c) => {
+client.once(Events.ClientReady, async (c) => {
+    await sodium.ready; // Περιμένουμε οπωσδήποτε το sodium
     console.log(`✅ Η Αθηνά ξεκίνησε: ${c.user.tag}`);
+    console.log("--- Dependency Report ---");
     console.log(generateDependencyReport());
 });
 
 async function playSpeech(text, voiceChannel) {
+  // Εξασφαλίζουμε ότι το sodium είναι έτοιμο πριν τη σύνδεση
+  await sodium.ready;
+
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
@@ -47,9 +53,8 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    // Αναμονή σύνδεσης
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
-    console.log(`🔊 Επιτυχής σύνδεση στο κανάλι!`);
+    console.log(`🔊 Σύνδεση επιτυχής!`);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
@@ -81,7 +86,7 @@ async function playSpeech(text, voiceChannel) {
     });
 
   } catch (error) {
-    console.error("❌ Σφάλμα:", error.message);
+    console.error("❌ Σφάλμα σύνδεσης:", error.message);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
   }
 }
