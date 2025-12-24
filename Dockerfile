@@ -1,20 +1,31 @@
-# Χρησιμοποιούμε την έκδοση 20 της Node
-FROM node:20
+# Χρησιμοποιούμε μια πλήρη έκδοση της Node (όχι την slim) για να έχουμε τα απαραίτητα εργαλεία
+FROM node:20-bookworm
+
+# Εγκατάσταση απαραίτητων εργαλείων συστήματος για την κρυπτογράφηση και τον ήχο
+RUN apt-get update && apt-get install -y \
+    python3 \
+    build-essential \
+    libtool \
+    autoconf \
+    automake \
+    libsodium-dev \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 # Δημιουργία φακέλου εργασίας
 WORKDIR /usr/src/app
 
-# Αντιγραφή των αρχείων ρυθμίσεων
+# Αντιγραφή του package.json
 COPY package*.json ./
 
-# Εγκατάσταση των βιβλιοθηκών (εδώ θα φτιάξει μόνο του το lockfile)
-RUN npm install
+# Εγκατάσταση βιβλιοθηκών - Το npm rebuild θα φτιάξει τις βιβλιοθήκες κρυπτογράφησης σωστά
+RUN npm install && npm rebuild sodium-native libsodium-wrappers
 
-# Αντιγραφή όλου του κώδικα
+# Αντιγραφή του υπόλοιπου κώδικα
 COPY . .
 
-# Η θύρα που χρησιμοποιεί το Koyeb
+# Η θύρα του Koyeb
 EXPOSE 8000
 
-# Εκκίνηση του bot
+# Εκκίνηση
 CMD [ "node", "index.js" ]
