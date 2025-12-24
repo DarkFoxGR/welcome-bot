@@ -1,4 +1,5 @@
 require('dotenv').config();
+const sodium = require('libsodium-wrappers');
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { 
@@ -14,8 +15,8 @@ const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { Readable } = require("stream");
 const http = require("http");
 
-// Απαραίτητο για το Render
-http.createServer((req, res) => { res.write("Bot is running"); res.end(); }).listen(process.env.PORT || 3000);
+// Υποχρεωτικό για το Render
+http.createServer((req, res) => { res.write("Bot is Live"); res.end(); }).listen(process.env.PORT || 3000);
 
 const client = new Client({
   intents: [
@@ -30,18 +31,21 @@ const SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const SPEECH_REGION = "westeurope";
 
 client.once(Events.ClientReady, () => {
-    console.log(`✅ Η Αθηνά ξεκίνησε επιτέλους!`);
+    console.log(`✅ Η Αθηνά ξεκίνησε!`);
 });
 
 async function playSpeech(text, voiceChannel) {
+  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΟ SODIUM ΠΡΙΝ ΤΗ ΣΥΝΔΕΣΗ
+  await sodium.ready;
+
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+    selfDeaf: false,
   });
 
   try {
-    // Περιμένουμε τη σύνδεση
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
@@ -60,7 +64,9 @@ async function playSpeech(text, voiceChannel) {
         player.play(resource);
 
         player.on(AudioPlayerStatus.Idle, () => {
-          setTimeout(() => { if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy(); }, 1000);
+          setTimeout(() => {
+            if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
+          }, 1000);
           synthesizer.close();
         });
       }
