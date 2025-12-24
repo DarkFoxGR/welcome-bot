@@ -1,10 +1,9 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
-const { Readable } = require("stream");
 const http = require("http");
 
-http.createServer((req, res) => { res.write("Athina is ready"); res.end(); }).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.write("Athina Fix is Live"); res.end(); }).listen(process.env.PORT || 3000);
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMembers]
@@ -12,7 +11,7 @@ const client = new Client({
 
 const tts = new MsEdgeTTS();
 
-client.once("ready", () => console.log(`✅ Bot Online: ${client.user.tag}`));
+client.once("ready", () => console.log(`✅ Το Bot είναι Online: ${client.user.tag}`));
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
   if (!oldState.channelId && newState.channelId) {
@@ -27,41 +26,40 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
     try {
       const text = `Καλωσήρθες ${member.displayName}`;
-      let audioBuffer;
 
-      // ΑΥΤΟΜΑΤΟΣ ΕΛΕΓΧΟΣ ΜΕΘΟΔΟΥ (ΓΙΑ ΝΑ ΜΗΝ ΞΑΝΑΒΓΑΛΕΙ "NOT A FUNCTION")
-      if (typeof tts.toRaw === 'function') {
-        audioBuffer = await tts.toRaw(text, { voice: "el-GR-AthinaNeural" });
-      } else if (typeof tts.toBuffer === 'function') {
-        audioBuffer = await tts.toBuffer(text, { voice: "el-GR-AthinaNeural" });
-      } else {
-        // Αν αποτύχουν όλα, χρησιμοποιούμε το Stream και το μετατρέπουμε
-        const stream = await tts.toStream(text, { voice: "el-GR-AthinaNeural" });
-        return playResource(connection, stream);
-      }
+      // 1. ΠΡΩΤΑ το setMetadata (όπως ζήτησε το log)
+      await tts.setMetadata("el-GR-AthinaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN);
+      
+      // 2. ΠΕΡΙΜΕΝΟΥΜΕ το stream (await) γιατί η βιβλιοθήκη το επιστρέφει ως Promise
+      const audioStream = await tts.toStream(text);
+      
+      const resource = createAudioResource(audioStream);
+      const player = createAudioPlayer();
 
-      const stream = new Readable();
-      stream.push(audioBuffer);
-      stream.push(null);
-      playResource(connection, stream);
+      connection.subscribe(player);
+      player.play(resource);
+
+      player.on(AudioPlayerStatus.Idle, () => {
+        setTimeout(() => {
+          if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
+        }, 2000);
+      });
+
+      player.on('error', error => {
+        console.error(`Audio Error: ${error.message}`);
+        connection.destroy();
+      });
 
     } catch (err) {
-      console.error("TTS Error:", err);
-      connection.destroy();
+      console.error("TTS Final Error:", err);
+      if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
     }
   }
 });
 
-function playResource(connection, stream) {
-  const resource = createAudioResource(stream);
-  const player = createAudioPlayer();
-  connection.subscribe(player);
-  player.play(resource);
-  player.on(AudioPlayerStatus.Idle, () => {
-    setTimeout(() => { if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy(); }, 2000);
-  });
-}
-
-process.on('uncaughtException', (err) => { if (err.code !== 'ERR_SOCKET_DGRAM_NOT_RUNNING') console.error(err); });
+process.on('uncaughtException', (err) => {
+    if (err.code === 'ERR_SOCKET_DGRAM_NOT_RUNNING') return;
+    console.error('❌ Fatal Error:', err);
+});
 
 client.login(process.env.DISCORD_TOKEN);
