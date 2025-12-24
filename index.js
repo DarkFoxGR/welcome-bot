@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require("@discordjs/voice");
 const { MsEdgeTTS, OUTPUT_FORMAT } = require("msedge-tts");
 const http = require("http");
+const { Readable } = require("stream"); // Απαραίτητο για τη μετατροπή
 const libsodium = require("libsodium-wrappers");
 
 // Web Server για το Render
@@ -25,7 +26,6 @@ client.once("ready", () => {
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
-  // Έλεγχος αν κάποιος μπήκε σε κανάλι
   if (!oldState.channelId && newState.channelId) {
     const member = newState.member;
     if (!member || member.user.bot) return;
@@ -48,8 +48,11 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
       
       const text = `Καλωσήρθες ${member.displayName}`;
       
-      // ΠΡΟΣΟΧΗ: Εδώ προσθέσαμε το await για να πάρουμε το σωστό Stream
-      const readableStream = await tts.toStream(text);
+      // Λήψη των δεδομένων ήχου
+      const audioData = await tts.toStream(text);
+      
+      // ΜΕΤΑΤΡΟΠΗ: Μετατρέπουμε το αντικείμενο σε Stream που καταλαβαίνει το Discord
+      const readableStream = Readable.from(audioData);
       
       const resource = createAudioResource(readableStream);
       const player = createAudioPlayer();
