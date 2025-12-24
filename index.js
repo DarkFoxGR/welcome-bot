@@ -1,7 +1,10 @@
 require('dotenv').config();
-// --- ΑΥΤΟ ΕΙΝΑΙ ΤΟ ΚΡΙΣΙΜΟ PATCH ---
 const sodium = require('libsodium-wrappers');
-// ------------------------------------
+
+// --- FORCE ENCRYPTION PATCH ---
+const { generateDependencyReport } = require('@discordjs/voice');
+console.log("Dependency Report:", generateDependencyReport());
+// ------------------------------
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { 
@@ -18,7 +21,7 @@ const { Readable } = require("stream");
 const http = require("http");
 
 const port = process.env.PORT || 8000;
-http.createServer((req, res) => { res.writeHead(200); res.end("Running"); }).listen(port);
+http.createServer((req, res) => { res.writeHead(200); res.end("Bot is Live"); }).listen(port);
 
 const client = new Client({
   intents: [
@@ -34,7 +37,7 @@ client.once(Events.ClientReady, () => {
 });
 
 async function playSpeech(text, voiceChannel) {
-  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΗΝ ΚΡΥΠΤΟΓΡΑΦΗΣΗ ΝΑ ΦΟΡΤΩΣΕΙ
+  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΟ SODIUM
   await sodium.ready;
 
   const connection = joinVoiceChannel({
@@ -42,10 +45,11 @@ async function playSpeech(text, voiceChannel) {
     guildId: voiceChannel.guild.id,
     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
     selfDeaf: false,
+    // ΕΔΩ ΕΙΝΑΙ ΤΟ ΚΛΕΙΔΙ: Δοκιμάζουμε να μην ορίσουμε τίποτα 
+    // και να αφήσουμε το sodium.ready να κάνει τη δουλειά
   });
 
   try {
-    // Δίνουμε περισσότερο χρόνο για το Handshake κρυπτογράφησης
     await entersState(connection, VoiceConnectionStatus.Ready, 30000);
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
