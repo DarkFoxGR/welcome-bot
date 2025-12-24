@@ -43,11 +43,13 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     });
 
     try {
-      // Η ΔΙΟΡΘΩΣΗ: Ρυθμίζουμε τη φωνή ΚΑΘΕ ΦΟΡΑ πριν το toStream
+      // Ρύθμιση φωνής
       await tts.setMetadata("el-GR-AthinaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBPS_MONO_SIREN);
       
       const text = `Καλωσήρθες ${member.displayName}`;
-      const readableStream = tts.toStream(text);
+      
+      // ΠΡΟΣΟΧΗ: Εδώ προσθέσαμε το await για να πάρουμε το σωστό Stream
+      const readableStream = await tts.toStream(text);
       
       const resource = createAudioResource(readableStream);
       const player = createAudioPlayer();
