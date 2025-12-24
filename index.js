@@ -1,10 +1,5 @@
 require('dotenv').config();
-const sodium = require('libsodium-wrappers');
-
-// --- FORCE ENCRYPTION PATCH ---
-const { generateDependencyReport } = require('@discordjs/voice');
-console.log("Dependency Report:", generateDependencyReport());
-// ------------------------------
+const nacl = require('tweetnacl');
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const { 
@@ -17,11 +12,11 @@ const {
     StreamType 
 } = require("@discordjs/voice");
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
-const { Readable } = require("stream");
+const { PassThrough } = require("stream");
 const http = require("http");
 
 const port = process.env.PORT || 8000;
-http.createServer((req, res) => { res.writeHead(200); res.end("Bot is Live"); }).listen(port);
+http.createServer((req, res) => { res.writeHead(200); res.end("Alive"); }).listen(port);
 
 const client = new Client({
   intents: [
@@ -33,42 +28,57 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, () => {
-    console.log(`✅ Η Αθηνά ξεκίνησε!`);
+    console.log(`✅ Η Αθηνά είναι Online!`);
 });
 
 async function playSpeech(text, voiceChannel) {
-  // ΠΕΡΙΜΕΝΟΥΜΕ ΤΟ SODIUM
-  await sodium.ready;
-
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
     selfDeaf: false,
-    // ΕΔΩ ΕΙΝΑΙ ΤΟ ΚΛΕΙΔΙ: Δοκιμάζουμε να μην ορίσουμε τίποτα 
-    // και να αφήσουμε το sodium.ready να κάνει τη δουλειά
   });
 
   try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 30000);
-
+    await entersState(connection, VoiceConnectionStatus.Ready, 20000);
+    
     const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_SPEECH_KEY, "westeurope");
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
     const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="el-GR"><voice name="el-GR-AthinaNeural"><prosody rate="0.85">${text}</prosody></voice></speak>`;
 
     synthesizer.speakSsmlAsync(ssml, result => {
       if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-        const resource = createAudioResource(new Readable().wrap(new Readable({
-          read() { this.push(Buffer.from(result.audioData)); this.push(null); }
-        })), { inputType: StreamType.Arbitrary });
+        // Χρήση PassThrough για πιο σταθερό streaming ήχου
+        const bufferStream = new PassThrough();
+        bufferStream.end(Buffer.from(result.audioData));
+
+        const resource = createAudioResource(bufferStream, {
+          inputType: StreamType.Arbitrary,
+          inlineVolume: true
+        });
 
         const player = createAudioPlayer();
         connection.subscribe(player);
         player.play(resource);
 
+        player.on(AudioPlayerStatus.Playing, () => {
+            console.log("🔊 Ξεκίνησε η ομιλία!");
+        });
+
         player.on(AudioPlayerStatus.Idle, () => {
-          setTimeout(() => { if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy(); }, 1500);
+          // Δίνουμε 2 δευτερόλεπτα πριν την αποσύνδεση για να μην κόβεται η τελευταία λέξη
+          setTimeout(() => {
+            if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+                connection.destroy();
+                console.log("🔌 Αποσυνδέθηκε κανονικά.");
+            }
+          }, 2000);
           synthesizer.close();
+        });
+
+        player.on('error', error => {
+          console.error(`Audio Player Error: ${error.message}`);
+          connection.destroy();
         });
       }
     });
@@ -81,6 +91,7 @@ async function playSpeech(text, voiceChannel) {
 
 client.on("voiceStateUpdate", (oldState, newState) => {
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
+    console.log(`👤 Είσοδος χρήστη: ${newState.member.displayName}`);
     playSpeech(`Καλωσήρθες ${newState.member.displayName}`, newState.channel);
   }
 });
