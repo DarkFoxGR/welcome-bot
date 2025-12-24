@@ -1,5 +1,6 @@
 FROM node:20-bookworm
 
+# Εγκατάσταση των απαραίτητων βιβλιοθηκών συστήματος
 RUN apt-get update && apt-get install -y \
     build-essential \
     libsodium-dev \
