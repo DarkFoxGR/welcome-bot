@@ -7,32 +7,41 @@ const {
     createAudioResource, 
     entersState, 
     VoiceConnectionStatus, 
-    StreamType,
-    generateDependencyReport
+    StreamType
 } = require("@discordjs/voice");
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
 const { PassThrough } = require("stream");
 
+// --- 1. HEALTH CHECK ---
 const PORT = process.env.PORT || 8080;
 http.createServer((req, res) => {
     res.writeHead(200);
     res.end("Bot is Online");
 }).listen(PORT, "0.0.0.0");
 
+// --- 2. CLIENT SETUP ---
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds, 
     GatewayIntentBits.GuildVoiceStates, 
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ]
 });
 
+// Μεταβλητή για το Cooldown (10 δευτερόλεπτα)
+let isProcessing = false;
+
 client.once(Events.ClientReady, (c) => {
     console.log(`✅ Η Αθηνά είναι έτοιμη! Συνδέθηκε ως: ${c.user.tag}`);
-    console.log(generateDependencyReport());
 });
 
+// --- 3. ΚΥΡΙΑ ΣΥΝΑΡΤΗΣΗ ΟΜΙΛΙΑΣ ---
 async function playSpeech(text, voiceChannel) {
+  if (isProcessing) return; // Αν μιλάει ήδη, αγνόησε τη νέα εντολή
+  isProcessing = true;
+
   const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
     guildId: voiceChannel.guild.id,
@@ -41,13 +50,8 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    // ΑΥΞΗΣΗ ΧΡΟΝΟΥ: Περιμένουμε έως 30 δευτερόλεπτα για να γίνει Ready
-    console.log("⏳ Προσπάθεια σύνδεσης στο κανάλι...");
-    await entersState(connection, VoiceConnectionStatus.Ready, 30000);
-    console.log("🔊 Η σύνδεση ολοκληρώθηκε, ετοιμάζω τη φωνή...");
-
-    // Μικρή παύση 1 δευτερολέπτου για να σταθεροποιηθεί η σύνδεση
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await entersState(connection, VoiceConnectionStatus.Ready, 20000);
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     const speechConfig = sdk.SpeechConfig.fromSubscription(
       process.env.AZURE_SPEECH_KEY, 
@@ -70,40 +74,59 @@ async function playSpeech(text, voiceChannel) {
         bufferStream.end(Buffer.from(result.audioData));
 
         const player = createAudioPlayer();
-        const resource = createAudioResource(bufferStream, { 
-          inputType: StreamType.Arbitrary 
-        });
+        const resource = createAudioResource(bufferStream, { inputType: StreamType.Arbitrary });
         
         connection.subscribe(player);
         player.play(resource);
 
         player.on('idle', () => {
           setTimeout(() => {
-            if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
-              connection.destroy();
-            }
-          }, 2000);
+            if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
+            isProcessing = false; // Απελευθέρωση για την επόμενη εντολή
+          }, 1500);
           synthesizer.close();
         });
+      } else {
+        isProcessing = false;
       }
     });
 
   } catch (error) {
-    console.error("❌ Σφάλμα στη σύνδεση:", error.message);
-    // Αν αποτύχει, κλείνουμε τη σύνδεση για να μπορεί να ξαναπροσπαθήσει μετά
-    if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
-      connection.destroy();
-    }
+    console.error("❌ Σφάλμα:", error.message);
+    if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
+    isProcessing = false;
   }
 }
 
+// --- 4. ΑΥΤΟΜΑΤΟ ΚΑΛΩΣΟΡΙΣΜΑ ---
 client.on("voiceStateUpdate", (oldState, newState) => {
-  // Έλεγχος αν κάποιος μπήκε (και δεν ήταν ήδη μέσα σε άλλο κανάλι)
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
-    console.log(`👤 Ο χρήστης ${newState.member.displayName} μπήκε.`);
     const welcomeMessage = `Καλωσήρθες στην παρέα μας, ${newState.member.displayName}! Καλές Γιορτές να έχεις!`;
     playSpeech(welcomeMessage, newState.channel);
   }
+});
+
+// --- 5. ΕΝΤΟΛΗ !say ---
+client.on("messageCreate", async (message) => {
+  if (message.author.bot || !message.content.startsWith("!say ")) return;
+
+  const voiceChannel = message.member.voice.channel;
+  if (!voiceChannel) {
+    return message.reply("Πρέπει να είσαι σε voice channel για να χρησιμοποιήσεις την εντολή!");
+  }
+
+  if (isProcessing) {
+    return message.reply("Περίμενε λίγο, είμαι απασχολημένη!");
+  }
+
+  const textToSay = message.content.slice(5).trim();
+  
+  if (textToSay.length > 200) {
+    return message.reply("Το μήνυμα είναι πολύ μεγάλο! (Όριο 200 χαρακτήρες)");
+  }
+
+  console.log(`💬 !say από ${message.author.username}: ${textToSay}`);
+  playSpeech(textToSay, voiceChannel);
 });
 
 client.login(process.env.DISCORD_TOKEN);
