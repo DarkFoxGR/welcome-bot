@@ -98,10 +98,11 @@ async function playSpeech(text, voiceChannel) {
   }
 }
 
-// --- 4. ΑΥΤΟΜΑΤΟ ΚΑΛΩΣΟΡΙΣΜΑ ---
+// --- 4. ΑΥΤΟΜΑΤΟ ΚΑΛΩΣΟΡΙΣΜΑ (Διορθωμένο χωρίς το Καλές Γιορτές) ---
 client.on("voiceStateUpdate", (oldState, newState) => {
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
-    const welcomeMessage = `Καλωσήρθες στην παρέα μας, ${newState.member.displayName}! Καλές Γιορτές να έχεις!`;
+    // Εδώ αφαιρέθηκε η φράση "Καλές Γιορτές να έχεις!"
+    const welcomeMessage = `Καλωσήρθες στην παρέα μας, ${newState.member.displayName}!`;
     playSpeech(welcomeMessage, newState.channel);
   }
 });
