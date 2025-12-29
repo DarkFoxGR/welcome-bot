@@ -30,7 +30,6 @@ const client = new Client({
   ]
 });
 
-// Μεταβλητή για το Cooldown (10 δευτερόλεπτα)
 let isProcessing = false;
 
 client.once(Events.ClientReady, (c) => {
@@ -39,7 +38,7 @@ client.once(Events.ClientReady, (c) => {
 
 // --- 3. ΚΥΡΙΑ ΣΥΝΑΡΤΗΣΗ ΟΜΙΛΙΑΣ ---
 async function playSpeech(text, voiceChannel) {
-  if (isProcessing) return; // Αν μιλάει ήδη, αγνόησε τη νέα εντολή
+  if (isProcessing) return;
   isProcessing = true;
 
   const connection = joinVoiceChannel({
@@ -82,7 +81,7 @@ async function playSpeech(text, voiceChannel) {
         player.on('idle', () => {
           setTimeout(() => {
             if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
-            isProcessing = false; // Απελευθέρωση για την επόμενη εντολή
+            isProcessing = false;
           }, 1500);
           synthesizer.close();
         });
@@ -98,35 +97,106 @@ async function playSpeech(text, voiceChannel) {
   }
 }
 
-// --- 4. ΑΥΤΟΜΑΤΟ ΚΑΛΩΣΟΡΙΣΜΑ (Διορθωμένο χωρίς το Καλές Γιορτές) ---
+// --- 4. ΑΥΤΟΜΑΤΟ ΚΑΛΩΣΟΡΙΣΜΑ ΜΕ ΛΕΞΙΚΟ ΚΑΙ ΕΙΔΙΚΑ IDs ---
 client.on("voiceStateUpdate", (oldState, newState) => {
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
-    // Εδώ αφαιρέθηκε η φράση "Καλές Γιορτές να έχεις!"
-    const welcomeMessage = `Καλωσήρθες στην παρέα μας, ${newState.member.displayName}!`;
-    playSpeech(welcomeMessage, newState.channel);
+    
+    let rawName = newState.member.displayName;
+    let nickname = rawName;
+
+    // 1. Σταματάει στην παύλα και κρατάει μόνο το nickname
+    if (rawName.includes("-")) {
+        nickname = rawName.split("-")[0].trim();
+    }
+
+    // 2. Λεξικό Προφοράς
+    const pronunciationMap = {
+        "Leo_1973_": "Λέο χίλια εννιακόσια εβδομήντα τρία",
+        "BigBoomer05": "μπίγκ μπούμερ",
+        "mayoll": "μαγιόλ",
+        "jonniesss": "τζόνι",
+        "GiorgosTagan": "Γιώργο Τάγκαν",
+        "Seaman_Jr": "σήμαν",
+        "Terminator_GR_2022": "τερμινέιτορ",
+        "jimvw18": "τζζίμ δεκαοχτώ",
+        "NTPunk": "Εντ πάνκ",
+        "Little_Master_Yoda": "λίτλ μάστερ γιόντα",
+        "ABSOLUTE_NIGHTMARE": "άψολουτ νάιτμερ",
+        "gpoly": "τζί πόλυ",
+        "THEDARKRIPPER": "δε ντάρκ ρίπερ",
+        "tsiftis": "τσίφτις",
+        "Kai_Kailand": "κι κάιλαντ",
+        "BillKaras": "μπίλλ καρά",
+        "leontios5": "λεόντιε",
+        "koulistan": "κουλιστάν",
+        "telxinos": "τελχίνο",
+        "proud_gio": "πράουτ τζίο",
+        "OYZOPOWER": "ούζο πάουερ",
+        "MrPitsiou": "μίστερ πιτσίου",
+        "ALIGATOR_2016_2016": "αλιγάτορ",
+        "THREATY": "θρέτυ",
+        "AngeloSpil": "άντζελο σπίλ",
+        "Cpt_ZombZan_GR": "κάπτεν ζομπζαν",
+        "xxxguardianxxx": "γκάρντιαν",
+        "KOYRADOULIS": "κουραδούλις",
+        "padreimor": "παντρέιμορ",
+        "MONIK_KAPELO": "μονίκ καπέλο",
+        "i_will_mitsotaki_you": "μιτσοτάκι γιού",
+        "Stam_warrior": "στάμ γουόριορ",
+        "Lindor": "λίντορ",
+        "namor7123": "νέιμορ",
+        "Cpt_Resar": "κάπτεν ριζάρ",
+        "QuantumPhyzStix": "κουάντομ φιζ στιξ",
+        "ShotgunGun": "σοτγκαν",
+        "E3ANTAS": "έξαντας",
+        "call_me_epifaneio": "επιφάνειο",
+        "volkano23": "βολκάνο",
+        "Domenicaa": "Ντομένικα"
+    };
+
+    let finalName = pronunciationMap[nickname] || nickname;
+
+    // 3. Έλεγχος για Ειδικά IDs
+    const volkanoID = "374318360017502208";
+    const domenicaID = "604718910394073099";
+
+    if (newState.member.id === volkanoID) {
+        playSpeech("Χαίρετε κύριε!", newState.channel);
+    } 
+    else if (newState.member.id === domenicaID) {
+        const domenicaPhrases = [
+            "Καλώς Ήρθες Ντομένικα",
+            "Γειά σου Φιλενάδα",
+            "Εγέρθητω ήρθε η Ντομένικα"
+        ];
+        const randomDom = domenicaPhrases[Math.floor(Math.random() * domenicaPhrases.length)];
+        playSpeech(randomDom, newState.channel);
+    } 
+    else {
+        // Γενικά καλωσορίσματα για όλους τους άλλους
+        const generalPhrases = [
+            `Καλώς Ήρθες στο κανάλι μας, ${finalName}`,
+            `Καλησπέρα, ${finalName}`,
+            `Σε περιμέναμε, ${finalName}`,
+            `Έλα μέσα, ${finalName}`,
+            `Καλώς μας ήρθες, ${finalName}`
+        ];
+        const randomPhrase = generalPhrases[Math.floor(Math.random() * generalPhrases.length)];
+        playSpeech(randomPhrase, newState.channel);
+    }
   }
 });
 
 // --- 5. ΕΝΤΟΛΗ !say ---
 client.on("messageCreate", async (message) => {
   if (message.author.bot || !message.content.startsWith("!say ")) return;
-
   const voiceChannel = message.member.voice.channel;
-  if (!voiceChannel) {
-    return message.reply("Πρέπει να είσαι σε voice channel για να χρησιμοποιήσεις την εντολή!");
-  }
-
-  if (isProcessing) {
-    return message.reply("Περίμενε λίγο, είμαι απασχολημένη!");
-  }
+  if (!voiceChannel) return message.reply("Πρέπει να είσαι σε voice channel!");
+  if (isProcessing) return message.reply("Περίμενε λίγο!");
 
   const textToSay = message.content.slice(5).trim();
-  
-  if (textToSay.length > 200) {
-    return message.reply("Το μήνυμα είναι πολύ μεγάλο! (Όριο 200 χαρακτήρες)");
-  }
+  if (textToSay.length > 200) return message.reply("Πολύ μεγάλο μήνυμα!");
 
-  console.log(`💬 !say από ${message.author.username}: ${textToSay}`);
   playSpeech(textToSay, voiceChannel);
 });
 
