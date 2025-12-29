@@ -119,7 +119,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
         "Seaman_Jr": "σήμαν",
         "Terminator_GR_2022": "τερμινέιτορ",
         "jimvw18": "τζζίμ δεκαοχτώ",
-        "NTPunk": "Εντ πάνκ",
+        "NTPunk": "Εν τι πάνκ",
         "Little_Master_Yoda": "λίτλ μάστερ γιόντα",
         "ABSOLUTE_NIGHTMARE": "άψολουτ νάιτμερ",
         "gpoly": "τζί πόλυ",
@@ -201,3 +201,4 @@ client.on("messageCreate", async (message) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
