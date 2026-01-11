@@ -30,13 +30,14 @@ const client = new Client({
   ]
 });
 
+// Μεταβλητή για να μην μιλάει πάνω στον εαυτό της
 let isProcessing = false;
 
 client.once(Events.ClientReady, (c) => {
     console.log(`✅ Η Αθηνά είναι έτοιμη! Συνδέθηκε ως: ${c.user.tag}`);
 });
 
-// --- 3. ΚΥΡΙΑ ΣΥΝΑΡΤΗΣΗ ΟΜΙΛΙΑΣ ---
+// --- 3. ΚΥΡΙΑ ΣΥΝΑΡΤΗΣΗ ΟΜΙΛΙΑΣ (TURBO MODE) ---
 async function playSpeech(text, voiceChannel) {
   if (isProcessing) return;
   isProcessing = true;
@@ -49,44 +50,54 @@ async function playSpeech(text, voiceChannel) {
   });
 
   try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 20000);
-    await new Promise(resolve => setTimeout(resolve, 800));
-
+    // Ετοιμάζουμε το Azure ΑΜΕΣΩΣ
     const speechConfig = sdk.SpeechConfig.fromSubscription(
       process.env.AZURE_SPEECH_KEY, 
       process.env.AZURE_REGION || "westeurope"
     );
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
     
+    // SSML με υποστήριξη Αγγλικών και Γρήγορη Ταχύτητα
     const ssml = `
-      <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="el-GR">
+      <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="el-GR">
         <voice name="el-GR-AthinaNeural">
-          <prosody rate="0.85">
-            ${text}
-          </prosody>
+          <lang xml:lang="en-US">
+            <prosody rate="0.95"> 
+              ${text}
+            </prosody>
+          </lang>
         </voice>
       </speak>`;
 
-    synthesizer.speakSsmlAsync(ssml, result => {
+    synthesizer.speakSsmlAsync(ssml, async result => {
       if (result.audioData) {
         const bufferStream = new PassThrough();
         bufferStream.end(Buffer.from(result.audioData));
 
         const player = createAudioPlayer();
         const resource = createAudioResource(bufferStream, { inputType: StreamType.Arbitrary });
-        
-        connection.subscribe(player);
-        player.play(resource);
+
+        try {
+            // Περιμένουμε ελάχιστα να κλειδώσει η σύνδεση
+            await entersState(connection, VoiceConnectionStatus.Ready, 5000);
+            connection.subscribe(player);
+            player.play(resource);
+        } catch (err) {
+            console.log("Η σύνδεση άργησε πολύ, ακύρωση.");
+            if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
+            isProcessing = false;
+        }
 
         player.on('idle', () => {
           setTimeout(() => {
             if (connection.state.status !== VoiceConnectionStatus.Destroyed) connection.destroy();
             isProcessing = false;
-          }, 1500);
+          }, 500); // Φεύγει γρήγορα (μισό δευτερόλεπτο)
           synthesizer.close();
         });
       } else {
         isProcessing = false;
+        synthesizer.close();
       }
     });
 
@@ -97,19 +108,38 @@ async function playSpeech(text, voiceChannel) {
   }
 }
 
-// --- 4. ΑΥΤΟΜΑΤΟ ΚΑΛΩΣΟΡΙΣΜΑ ΜΕ ΛΕΞΙΚΟ ΚΑΙ ΕΙΔΙΚΑ IDs ---
+// --- 4. ΑΥΤΟΜΑΤΟ ΚΑΛΩΣΟΡΙΣΜΑ (ΜΕ SPAM PROTECTION & ΝΕΑ ΟΝΟΜΑΤΑ) ---
+
+// Λίστα για το Cooldown
+const lastWelcomed = new Map();
+const COOLDOWN_TIME = 5 * 60 * 1000; // 5 Λεπτά
+
 client.on("voiceStateUpdate", (oldState, newState) => {
   if (!oldState.channelId && newState.channelId && !newState.member.user.bot) {
     
+    const userId = newState.member.id;
+    const now = Date.now();
+
+    // Έλεγχος Spam (5 λεπτά)
+    if (lastWelcomed.has(userId)) {
+        const lastTime = lastWelcomed.get(userId);
+        if (now - lastTime < COOLDOWN_TIME) {
+            console.log(`🔇 Παράκαμψη για ${newState.member.displayName} (Spam Protection)`);
+            return; 
+        }
+    }
+    lastWelcomed.set(userId, now);
+
+    // Επεξεργασία Ονόματος
     let rawName = newState.member.displayName;
     let nickname = rawName;
 
-    // 1. Σταματάει στην παύλα και κρατάει μόνο το nickname
+    // 1. Σταματάει στην παύλα
     if (rawName.includes("-")) {
         nickname = rawName.split("-")[0].trim();
     }
 
-    // 2. Λεξικό Προφοράς
+    // 2. Νέο Λεξικό Προφοράς (ΕΝΗΜΕΡΩΜΕΝΟ)
     const pronunciationMap = {
         "Leo_1973_": "Στέλιο",
         "BigBoomer05": "Σίμο",
@@ -139,6 +169,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
         "Cpt_ZombZan_GR": "κάπτεν ζόμπι",
         "xxxguardianxxx": "Μάκη",
         "KOYRADOULIS": "κουραδούλι",
+        "padreimor": "παντρέιμορ", // Το άφησα γιατί υπήρχε στην παλιά λίστα, αν θες σβήστο
         "MONIK_KAPELO": "Χρήστος",
         "i_will_mitsotaki_you": "Νίκο",
         "Stam_warrior": "Σταμάτη",
@@ -160,9 +191,11 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     const domenicaID = "604718910394073099";
 
     if (newState.member.id === volkanoID) {
+        // Ειδικό για Volkano
         playSpeech("Χαίρετε κύριε Γιώργο!", newState.channel);
     } 
     else if (newState.member.id === domenicaID) {
+        // Ειδικό για Domenica
         const domenicaPhrases = [
             "Καλώς Ήρθες Κική",
             "Γειά σου Ντομένικα",
@@ -172,7 +205,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
         playSpeech(randomDom, newState.channel);
     } 
     else {
-        // Γενικά καλωσορίσματα για όλους τους άλλους
+        // Γενικά καλωσορίσματα
         const generalPhrases = [
             `Καλώς Ήρθες στο κανάλι μας, ${finalName}`,
             `Καλησπέρα, ${finalName}`,
@@ -200,5 +233,3 @@ client.on("messageCreate", async (message) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
-
