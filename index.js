@@ -111,47 +111,46 @@ client.on("voiceStateUpdate", (oldState, newState) => {
 
     // 2. Λεξικό Προφοράς
     const pronunciationMap = {
-        "Leo_1973_": "Λέο χίλια εννιακόσια εβδομήντα τρία",
-        "BigBoomer05": "μπίγκ μπούμερ",
-        "mayoll": "μαγιόλ",
+        "Leo_1973_": "Στέλιο",
+        "BigBoomer05": "Σίμο",
+        "mayoll": "Δημήτρη",
         "jonniesss": "τζόνι",
         "GiorgosTagan": "Γιώργο Τάγκαν",
         "Seaman_Jr": "σήμαν",
         "Terminator_GR_2022": "τερμινέιτορ",
-        "jimvw18": "τζζίμ δεκαοχτώ",
-        "NTPunk": "Εν τι πάνκ",
-        "Little_Master_Yoda": "λίτλ μάστερ γιόντα",
-        "ABSOLUTE_NIGHTMARE": "άψολουτ νάιτμερ",
-        "gpoly": "τζί πόλυ",
-        "THEDARKRIPPER": "δε ντάρκ ρίπερ",
-        "tsiftis": "τσίφτις",
-        "Kai_Kailand": "κι κάιλαντ",
-        "BillKaras": "μπίλλ καρά",
+        "jimvw18": "Μήτσο",
+        "NTPunk": "Λουλουδά",
+        "Little_Master_Yoda": "Σταμάτη",
+        "ABSOLUTE_NIGHTMARE": "Γιώργο",
+        "gpoly": "γκρινιάρη",
+        "THEDARKRIPPER": "Σώτο",
+        "tsiftis": "Λευτέρη",
+        "Kai_Kailand": "Κώστα",
+        "BillKaras": "Μπίλυ",
         "leontios5": "λεόντιε",
         "koulistan": "κουλιστάν",
-        "telxinos": "τελχίνο",
+        "telxinos": "τελχίνε",
         "proud_gio": "πράουτ τζίο",
         "OYZOPOWER": "ούζο πάουερ",
-        "MrPitsiou": "μίστερ πιτσίου",
-        "ALIGATOR_2016_2016": "αλιγάτορ",
-        "THREATY": "θρέτυ",
-        "AngeloSpil": "άντζελο σπίλ",
-        "Cpt_ZombZan_GR": "κάπτεν ζομπζαν",
-        "xxxguardianxxx": "γκάρντιαν",
-        "KOYRADOULIS": "κουραδούλις",
-        "padreimor": "παντρέιμορ",
-        "MONIK_KAPELO": "μονίκ καπέλο",
-        "i_will_mitsotaki_you": "μιτσοτάκι γιού",
-        "Stam_warrior": "στάμ γουόριορ",
+        "MrPitsiou": "Αποστόλη",
+        "ALIGATOR_2016_2016": "Στέφανε",
+        "THREATY": "Βαγγέλη",
+        "AngeloSpil": "Άγγελε",
+        "Cpt_ZombZan_GR": "κάπτεν ζόμπι",
+        "xxxguardianxxx": "Μάκη",
+        "KOYRADOULIS": "κουραδούλι",
+        "MONIK_KAPELO": "Χρήστος",
+        "i_will_mitsotaki_you": "Νίκο",
+        "Stam_warrior": "Σταμάτη",
         "Lindor": "λίντορ",
         "namor7123": "νέιμορ",
         "Cpt_Resar": "κάπτεν ριζάρ",
-        "QuantumPhyzStix": "κουάντομ φιζ στιξ",
-        "ShotgunGun": "σοτγκαν",
-        "E3ANTAS": "έξαντας",
+        "QuantumPhyzStix": "Θοδωρή",
+        "ShotgunGun": "Γιάννη",
+        "E3ANTAS": "έξαντα",
         "call_me_epifaneio": "επιφάνειο",
-        "volkano23": "βολκάνο",
-        "Domenicaa": "Ντομένικα"
+        "volkano23": "Γιώργο",
+        "Domenicaa": "Κική"
     };
 
     let finalName = pronunciationMap[nickname] || nickname;
@@ -161,13 +160,13 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     const domenicaID = "604718910394073099";
 
     if (newState.member.id === volkanoID) {
-        playSpeech("Χαίρετε κύριε!", newState.channel);
+        playSpeech("Χαίρετε κύριε Γιώργο!", newState.channel);
     } 
     else if (newState.member.id === domenicaID) {
         const domenicaPhrases = [
-            "Καλώς Ήρθες Ντομένικα",
-            "Γειά σου Φιλενάδα",
-            "Εγέρθητω ήρθε η Ντομένικα"
+            "Καλώς Ήρθες Κική",
+            "Γειά σου Ντομένικα",
+            "Εγέρθητω ήρθε η Κική"
         ];
         const randomDom = domenicaPhrases[Math.floor(Math.random() * domenicaPhrases.length)];
         playSpeech(randomDom, newState.channel);
@@ -201,4 +200,5 @@ client.on("messageCreate", async (message) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
 
